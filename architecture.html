@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Data on Tap — Architecture</title>
+<style>
+  :root{
+    box-sizing:border-box;
+    --bg:#faf9f7; --ink:#1c1b19; --muted:#6b6862; --line:#e4e1db;
+    --card:#ffffff; --brand:#d13438; --brand-soft:#fdeceb;
+    --oltp:#2563eb; --oltp-soft:#e7effe; --olap:#059669; --olap-soft:#e4f5ee;
+    --mvp:#d13438; --t2:#ff8a00; --code:#f3f1ec;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#1a1917; --ink:#eceae4; --muted:#a8a49c; --line:#34322e;
+      --card:#242220; --brand-soft:#3a1f1d; --oltp-soft:#16233a; --olap-soft:#12312a; --code:#2c2a26;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#1a1917; --ink:#eceae4; --muted:#a8a49c; --line:#34322e;
+    --card:#242220; --brand-soft:#3a1f1d; --oltp-soft:#16233a; --olap-soft:#12312a; --code:#2c2a26;
+  }
+  *{box-sizing:inherit;}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.55;font-size:14px;}
+  .page{max-width:1000px;margin:0 auto;padding:28px 16px 56px;}
+  @media(min-width:680px){.page{padding:28px 32px 56px;}}
+  header{border-bottom:3px solid var(--brand);padding-bottom:14px;display:flex;
+    justify-content:space-between;align-items:baseline;gap:16px;flex-wrap:wrap;}
+  header h1{margin:0;font-size:23px;letter-spacing:-0.02em;}
+  header h1 .s{color:var(--brand);}
+  header .meta{color:var(--muted);font-size:12px;text-align:right;}
+  .pitch{margin:16px 0 26px;padding:14px 18px;background:var(--brand-soft);
+    border-left:4px solid var(--brand);border-radius:6px;font-size:15px;}
+  h2{font-size:12px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);
+    margin:30px 0 12px;font-weight:700;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 20px;}
+  .arch svg{display:block;max-width:100%;height:auto;margin:0 auto;}
+  .legend{display:flex;gap:18px;flex-wrap:wrap;margin-top:12px;font-size:11px;color:var(--muted);}
+  .legend span{display:inline-flex;align-items:center;gap:6px;}
+  .dot{width:11px;height:11px;border-radius:3px;display:inline-block;}
+  .grid2{display:grid;grid-template-columns:1fr;gap:16px;}
+  @media(min-width:680px){.grid2{grid-template-columns:1fr 1fr;}}
+  .box h3{margin:0 0 10px;font-size:14px;}
+  ul{margin:0;padding-left:18px;}
+  li{margin:6px 0;}
+  code{background:var(--code);padding:1px 5px;border-radius:4px;font-size:12.5px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;}
+  .tiers{display:grid;grid-template-columns:1fr;gap:14px;}
+  @media(min-width:680px){.tiers{grid-template-columns:1fr 1fr;}}
+  .tier{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;border-top:4px solid var(--line);}
+  .tier.mvp{border-top-color:var(--mvp);} .tier.t2{border-top-color:var(--t2);}
+  .tier h3{margin:0 0 8px;font-size:14px;display:flex;align-items:center;gap:8px;}
+  .badge{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:2px 8px;border-radius:20px;color:#fff;}
+  .badge.mvp{background:var(--mvp);} .badge.t2{background:var(--t2);}
+  pre{background:var(--code);border-radius:8px;padding:14px 16px;overflow-x:auto;font-size:12.5px;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;line-height:1.5;margin:0;}
+  .erd{overflow-x:auto;}
+  footer{margin-top:30px;padding-top:12px;border-top:1px solid var(--line);font-size:11px;color:var(--muted);}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <header>
+    <h1>Data on Tap — <span class="s">Pizza Ordering App</span></h1>
+    <div class="meta">Architecture &amp; data model · MVP spine<br>Databricks · Knowit · Customer</div>
+  </header>
+
+  <div class="pitch">
+    A <strong>real transactional ordering app on Lakebase</strong>, with <strong>live analytics on the same platform</strong> as the next layer — OLTP and OLAP in one lakehouse, no external database, no data movement out of Databricks. This MVP is the spine; features get built live on top of it at the event.
+  </div>
+
+  <h2>System architecture</h2>
+  <div class="card arch">
+    <svg viewBox="0 0 900 380" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,Segoe UI,Roboto,sans-serif">
+      <rect x="6" y="34" width="430" height="322" rx="12" fill="#e7effe" opacity="0.4"/>
+      <text x="24" y="58" font-size="12" font-weight="700" fill="#2563eb" letter-spacing="1">TRANSACTIONAL (OLTP) — the MVP</text>
+      <rect x="464" y="34" width="430" height="322" rx="12" fill="#e4f5ee" opacity="0.45"/>
+      <text x="482" y="58" font-size="12" font-weight="700" fill="#059669" letter-spacing="1">ANALYTICS (OLAP) — next layer</text>
+
+      <rect x="36" y="82" width="360" height="66" rx="9" fill="#ffffff" stroke="#2563eb" stroke-width="1.5"/>
+      <text x="216" y="108" text-anchor="middle" font-size="13" font-weight="700" fill="#1c1b19">Streamlit App  ·  (React alt for Tue)</text>
+      <text x="216" y="128" text-anchor="middle" font-size="11" fill="#6b6862">customer · kitchen · branch views — Databricks App (SSO)</text>
+
+      <rect x="36" y="238" width="360" height="96" rx="9" fill="#ffffff" stroke="#2563eb" stroke-width="1.5"/>
+      <text x="216" y="264" text-anchor="middle" font-size="13" font-weight="700" fill="#1c1b19">Lakebase — managed Postgres</text>
+      <text x="216" y="284" text-anchor="middle" font-size="11" fill="#6b6862">branches · customers · partners · menu</text>
+      <text x="216" y="300" text-anchor="middle" font-size="11" fill="#6b6862">inventory · orders · order_items</text>
+      <text x="216" y="320" text-anchor="middle" font-size="10.5" fill="#2563eb">atomic place-order txn · per-branch stock</text>
+
+      <line x1="200" y1="148" x2="200" y2="236" stroke="#2563eb" stroke-width="2" marker-end="url(#b)"/>
+      <line x1="232" y1="236" x2="232" y2="150" stroke="#2563eb" stroke-width="2" marker-end="url(#b)"/>
+      <text x="255" y="197" font-size="10" fill="#2563eb">read / write</text>
+
+      <line x1="396" y1="286" x2="502" y2="286" stroke="#059669" stroke-width="2.5" marker-end="url(#g)"/>
+      <text x="449" y="278" text-anchor="middle" font-size="10.5" font-weight="600" fill="#059669">sync (UC)</text>
+
+      <rect x="502" y="238" width="118" height="60" rx="8" fill="#ffffff" stroke="#059669" stroke-width="1.3"/>
+      <text x="561" y="264" text-anchor="middle" font-size="12" font-weight="700" fill="#b45309">Bronze</text>
+      <text x="561" y="281" text-anchor="middle" font-size="10" fill="#6b6862">raw</text>
+      <rect x="632" y="238" width="118" height="60" rx="8" fill="#ffffff" stroke="#059669" stroke-width="1.3"/>
+      <text x="691" y="264" text-anchor="middle" font-size="12" font-weight="700" fill="#6b7280">Silver</text>
+      <text x="691" y="281" text-anchor="middle" font-size="10" fill="#6b6862">clean</text>
+      <rect x="762" y="238" width="118" height="60" rx="8" fill="#ffffff" stroke="#059669" stroke-width="1.3"/>
+      <text x="821" y="264" text-anchor="middle" font-size="12" font-weight="700" fill="#a16207">Gold</text>
+      <text x="821" y="281" text-anchor="middle" font-size="10" fill="#6b6862">aggregates</text>
+      <line x1="620" y1="268" x2="630" y2="268" stroke="#059669" stroke-width="2" marker-end="url(#g)"/>
+      <line x1="750" y1="268" x2="760" y2="268" stroke="#059669" stroke-width="2" marker-end="url(#g)"/>
+
+      <rect x="502" y="90" width="378" height="118" rx="9" fill="#ffffff" stroke="#059669" stroke-width="1.5"/>
+      <text x="691" y="118" text-anchor="middle" font-size="13" font-weight="700" fill="#1c1b19">SQL Dashboard · Genie</text>
+      <text x="691" y="140" text-anchor="middle" font-size="11" fill="#6b6862">best sellers · revenue · VAT collected</text>
+      <text x="691" y="158" text-anchor="middle" font-size="11" fill="#6b6862">orders by city and branch · low-stock alerts</text>
+      <text x="691" y="182" text-anchor="middle" font-size="10.5" fill="#059669">natural-language queries (stretch)</text>
+      <line x1="691" y1="236" x2="691" y2="210" stroke="#059669" stroke-width="2" marker-end="url(#g)"/>
+
+      <defs>
+        <marker id="b" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#2563eb"/></marker>
+        <marker id="g" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#059669"/></marker>
+      </defs>
+    </svg>
+    <div class="legend">
+      <span><span class="dot" style="background:#2563eb"></span>Transactional — the app writes here (MVP)</span>
+      <span><span class="dot" style="background:#059669"></span>Analytics — same platform, zero export (next)</span>
+    </div>
+  </div>
+
+  <h2>Data model (ER diagram)</h2>
+  <div class="card erd">
+    <div id="erd"></div>
+  </div>
+
+  <h2>The heart of it — the atomic transaction</h2>
+  <div class="card">
+    <p style="margin:0 0 10px;">Placing an order is one all-or-nothing transaction. The <code>WHERE stock_quantity &gt;= :qty</code> check plus rows-affected is the concurrency guard — it serializes at the row and makes overselling impossible, however many people order at once.</p>
+<pre>BEGIN
+  INSERT INTO orders (...) RETURNING order_id
+  for each item:
+    INSERT INTO order_items (order_id, menu_id, quantity, unit_price, line_total)
+    UPDATE inventory SET stock_quantity = stock_quantity - :qty
+      WHERE branch_id = :b AND menu_id = :m AND stock_quantity &gt;= :qty
+    if rows_affected == 0:  ROLLBACK   -- sold out; reject the whole order
+  write subtotal, vat_amount (12%), total_price onto the order
+COMMIT</pre>
+    <p style="margin:10px 0 0;color:var(--muted);">Restock uses the same discipline: <code>stock_quantity = stock_quantity + :amount</code> (relative add, never an absolute set — that would clobber a concurrent order's decrement). Partner assignment reuses the identical primitive: <code>UPDATE orders SET partner_id=:me WHERE partner_id IS NULL</code>.</p>
+  </div>
+
+  <h2>Feature priorities</h2>
+  <div class="tiers">
+    <div class="tier mvp">
+      <h3><span class="badge mvp">MVP</span> the spine (build now)</h3>
+      <ul>
+        <li>Pick branch (grouped by city) → browse that branch's menu with live stock</li>
+        <li>Multi-item cart → place order → <strong>atomic transaction</strong> + stock decrement</li>
+        <li>Stock guard (UI cap + transaction re-check)</li>
+        <li>VAT breakdown (12%) · delivery mode (pickup / delivery)</li>
+        <li>Kitchen view: order queue + advance status + restock</li>
+      </ul>
+    </div>
+    <div class="tier t2">
+      <h3><span class="badge t2">Event day</span> build live on top</h3>
+      <ul>
+        <li>Delivery-partner assignment (first-to-accept, same atomic primitive)</li>
+        <li>Concurrency demo harness (N orders, low stock, watch it hold)</li>
+        <li>Analytics via Delta medallion · Genie NL queries</li>
+        <li>Geo / nearest-branch (lat-long columns already present)</li>
+        <li>Restock logging (inventory_log audit table)</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2>Key decisions</h2>
+  <div class="grid2">
+    <div class="card box">
+      <h3>Why this showcases Databricks</h3>
+      <ul>
+        <li><strong>One platform, two workloads</strong> — OLTP (Lakebase) + OLAP (Delta), no external DB, no ETL out.</li>
+        <li><strong>Lakebase = real Postgres</strong> — genuine transactions, not an analytics dashboard in disguise.</li>
+        <li><strong>Concurrency is the demo</strong> — atomic write proves correctness under load, live.</li>
+        <li><strong>Governed by Unity Catalog</strong> — one permission model across app and analytics.</li>
+      </ul>
+    </div>
+    <div class="card box">
+      <h3>Deliberate scope calls</h3>
+      <ul>
+        <li><strong>Auth:</strong> Databricks Apps SSO; apps can't be public (Free Edition). Roles are a view selector. <code>no login built</code></li>
+        <li><strong>Delivery:</strong> status stages + mode, not a maps integration.</li>
+        <li><strong>Branches:</strong> multiple per city; nearest-branch geo is a stretch.</li>
+        <li><strong>One backend, two frontends</strong> — Streamlit (direct) + React (via thin API) share one spine.</li>
+      </ul>
+    </div>
+  </div>
+
+  <footer>
+    Data on Tap · one backend (Lakebase + shared transaction logic), two frontends (Streamlit, React) · MVP built to be extended live.
+  </footer>
+
+</div>
+
+<script type="module">
+import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+const dark = matchMedia('(prefers-color-scheme: dark)').matches && document.documentElement.getAttribute('data-theme') !== 'light';
+try {
+  mermaid.initialize({ startOnLoad:false, theme:'base',
+    themeVariables:{ darkMode:dark, fontSize:'13px',
+      lineColor: dark?'#9c9a92':'#73726c', textColor: dark?'#c2c0b6':'#3d3d3a',
+      primaryColor: dark?'#242220':'#ffffff', primaryBorderColor: dark?'#34322e':'#e4e1db',
+      primaryTextColor: dark?'#eceae4':'#1c1b19' }});
+  const { svg } = await mermaid.render('erd-svg', `erDiagram
+    BRANCHES ||--o{ INVENTORY : stocks
+    MENU ||--o{ INVENTORY : "stocked as"
+    BRANCHES ||--o{ ORDERS : receives
+    CUSTOMERS ||--o{ ORDERS : places
+    DELIVERY_PARTNERS |o--o{ ORDERS : delivers
+    BRANCHES ||--o{ DELIVERY_PARTNERS : "based at"
+    ORDERS ||--|{ ORDER_ITEMS : contains
+    MENU ||--o{ ORDER_ITEMS : "ordered as"
+    BRANCHES { int branch_id PK
+      string branch_name
+      string city
+      numeric latitude
+      numeric longitude }
+    CUSTOMERS { int customer_id PK
+      string name
+      string email }
+    DELIVERY_PARTNERS { int partner_id PK
+      string name
+      string status
+      int current_branch_id FK }
+    MENU { int id PK
+      string pizza_name
+      numeric price
+      string diet_type }
+    INVENTORY { int branch_id PK
+      int menu_id PK
+      int stock_quantity }
+    ORDERS { int order_id PK
+      int branch_id FK
+      int customer_id FK
+      int partner_id FK
+      string delivery_mode
+      numeric total_price
+      string status }
+    ORDER_ITEMS { int item_id PK
+      int order_id FK
+      int menu_id FK
+      int quantity
+      numeric unit_price }`);
+  document.getElementById('erd').innerHTML = svg;
+} catch(e){
+  document.getElementById('erd').textContent = 'ER diagram failed to render: ' + e.message;
+}
+</script>
+</body>
+</html>
