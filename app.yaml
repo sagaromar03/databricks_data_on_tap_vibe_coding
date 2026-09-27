@@ -1,0 +1,4 @@
+# Databricks App config. The runtime auto-injects host/port (DATABRICKS_APP_PORT),
+# so no --server.port is needed. Attach the `data-on-tap` Lakebase instance as an
+# app resource so connection details (or the app's identity) are available at runtime.
+command: ['streamlit', 'run', 'streamlit_app/app.py']
