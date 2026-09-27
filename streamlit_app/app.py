@@ -1,6 +1,6 @@
 """Data on Tap — Streamlit UI.
 
-Two views selected in the sidebar (a view selector, not a login):
+Two separate pages (a view selector, not a login), switched via the sidebar nav:
   - Customer: pick branch -> browse menu with live stock -> build cart ->
     see subtotal/VAT/total -> pick delivery mode -> place order.
   - Kitchen: live order queue (advance status) + per-branch stock and restock.
@@ -212,17 +212,22 @@ def kitchen_view():
 # Shell
 # --------------------------------------------------------------------------- #
 def main():
-    st.sidebar.title("🍕 Data on Tap")
-    view = st.sidebar.radio("View", ["Customer", "Kitchen"])
-    if st.sidebar.button("Refresh data"):
-        load_branches.clear()
-        load_customers.clear()
-        st.rerun()
+    with st.sidebar:
+        st.title("🍕 Data on Tap")
+        st.caption("Pizza ordering on Databricks Lakebase")
+        if st.button("Refresh data", use_container_width=True):
+            load_branches.clear()
+            load_customers.clear()
+            st.rerun()
+        st.divider()
 
-    if view == "Customer":
-        customer_view()
-    else:
-        kitchen_view()
+    nav = st.navigation(
+        [
+            st.Page(customer_view, title="Order", icon="🍕", url_path="order", default=True),
+            st.Page(kitchen_view, title="Kitchen", icon="🧑‍🍳", url_path="kitchen"),
+        ]
+    )
+    nav.run()
 
 
 main()
