@@ -29,6 +29,10 @@ class OutOfStockError(Exception):
         )
 
 
+class DeliveryClaimError(Exception):
+    """Raised when a delivery was already claimed by another partner (lost the race)."""
+
+
 def _rows_as_dicts(cur):
     cols = [d[0] for d in cur.description]
     return [dict(zip(cols, row)) for row in cur.fetchall()]
@@ -160,7 +164,7 @@ def get_orders(branch_id, include_delivered=False):
 
     By default hides delivered orders (the live kitchen queue).
     """
-    status_filter = "" if include_delivered else "AND o.status <> 'delivered'"
+    status_filter = "" if include_delivered else "AND o.status NOT IN ('delivered', 'out for delivery')"
     with connection() as conn, conn.cursor() as cur:
         cur.execute(
             f"""
@@ -203,6 +207,202 @@ def get_orders(branch_id, include_delivered=False):
         return orders
 
 
+def get_addresses(customer_id):
+    """A customer's saved addresses, oldest first."""
+    with connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT address_id, label, street, city, postal_code
+            FROM customer_addresses
+            WHERE customer_id = %s
+            ORDER BY address_id
+            """,
+            (customer_id,),
+        )
+        return _rows_as_dicts(cur)
+
+
+def add_address(customer_id, label, street, city, postal_code):
+    """Add a saved address for a customer. Returns the new address_id."""
+    label = (label or "").strip() or "Home"
+    street = (street or "").strip()
+    city = (city or "").strip()
+    postal_code = (postal_code or "").strip()
+    if not street or not city:
+        raise ValueError("Street and city are required.")
+    with connection() as conn:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO customer_addresses (customer_id, label, street, city, postal_code)
+                    VALUES (%s, %s, %s, %s, %s)
+                    RETURNING address_id
+                    """,
+                    (customer_id, label, street, city, postal_code),
+                )
+                return cur.fetchone()[0]
+
+
+def get_address(address_id, customer_id):
+    """One address, only if it belongs to this customer (ownership check)."""
+    with connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT address_id, label, street, city, postal_code
+            FROM customer_addresses
+            WHERE address_id = %s AND customer_id = %s
+            """,
+            (address_id, customer_id),
+        )
+        rows = _rows_as_dicts(cur)
+        return rows[0] if rows else None
+
+
+def update_address(address_id, customer_id, label, street, city, postal_code):
+    """Update a customer's own address. The customer_id guard is the RBAC."""
+    street = (street or "").strip()
+    city = (city or "").strip()
+    if not street or not city:
+        raise ValueError("Street and city are required.")
+    with connection() as conn:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE customer_addresses
+                    SET label = %s, street = %s, city = %s, postal_code = %s
+                    WHERE address_id = %s AND customer_id = %s
+                    """,
+                    ((label or "").strip() or "Home", street, city,
+                     (postal_code or "").strip(), address_id, customer_id),
+                )
+                if cur.rowcount == 0:
+                    raise ValueError("Address not found.")
+
+
+def delete_address(address_id, customer_id):
+    """Delete a customer's own address. The customer_id guard is the RBAC."""
+    with connection() as conn:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "DELETE FROM customer_addresses WHERE address_id = %s AND customer_id = %s",
+                    (address_id, customer_id),
+                )
+                if cur.rowcount == 0:
+                    raise ValueError("Address not found.")
+
+
+def get_customer_orders(customer_id, limit=10):
+    """A single customer's own orders (all branches), newest first, with items."""
+    with connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT o.order_id, o.order_time, o.status, o.delivery_mode,
+                   o.total_price, b.branch_name
+            FROM orders o
+            JOIN branches b ON b.branch_id = o.branch_id
+            WHERE o.customer_id = %s
+            ORDER BY o.order_time DESC
+            LIMIT %s
+            """,
+            (customer_id, limit),
+        )
+        orders = _rows_as_dicts(cur)
+        if not orders:
+            return []
+
+        order_ids = [o["order_id"] for o in orders]
+        cur.execute(
+            """
+            SELECT oi.order_id, m.pizza_name, oi.quantity
+            FROM order_items oi
+            JOIN menu m ON m.id = oi.menu_id
+            WHERE oi.order_id = ANY(%s)
+            ORDER BY oi.item_id
+            """,
+            (order_ids,),
+        )
+        items_by_order = {}
+        for oid, name, qty in cur.fetchall():
+            items_by_order.setdefault(oid, []).append({"pizza_name": name, "quantity": qty})
+        for order in orders:
+            order["items"] = items_by_order.get(order["order_id"], [])
+        return orders
+
+
+def get_delivery_orders(branch_id):
+    """Unclaimed delivery orders for a branch — available for a partner to accept."""
+    with connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT o.order_id, o.order_time, o.status, o.total_price, c.name AS customer_name
+            FROM orders o
+            JOIN customers c ON c.customer_id = o.customer_id
+            WHERE o.branch_id = %s AND o.delivery_mode = 'delivery'
+              AND o.partner_id IS NULL
+              AND o.status NOT IN ('delivered', 'out for delivery')
+            ORDER BY o.order_time
+            """,
+            (branch_id,),
+        )
+        return _rows_as_dicts(cur)
+
+
+def get_my_deliveries(partner_id):
+    """Orders this partner has accepted and is currently delivering."""
+    with connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT o.order_id, o.order_time, o.status, o.total_price, c.name AS customer_name
+            FROM orders o
+            JOIN customers c ON c.customer_id = o.customer_id
+            WHERE o.partner_id = %s AND o.status = 'out for delivery'
+            ORDER BY o.order_time
+            """,
+            (partner_id,),
+        )
+        return _rows_as_dicts(cur)
+
+
+def claim_delivery(order_id, partner_id):
+    """Accept a delivery. Atomic first-to-accept: the partner_id IS NULL guard means
+    exactly one partner wins under concurrent accepts; the rest raise DeliveryClaimError.
+    """
+    with connection() as conn:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE orders
+                    SET partner_id = %s, status = 'out for delivery'
+                    WHERE order_id = %s AND partner_id IS NULL
+                    """,
+                    (partner_id, order_id),
+                )
+                if cur.rowcount == 0:
+                    raise DeliveryClaimError(
+                        f"Order {order_id} was already taken by another partner."
+                    )
+
+
+def mark_delivered(order_id, partner_id):
+    """Mark one of this partner's active deliveries as delivered."""
+    with connection() as conn:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE orders SET status = 'delivered'
+                    WHERE order_id = %s AND partner_id = %s AND status = 'out for delivery'
+                    """,
+                    (order_id, partner_id),
+                )
+                if cur.rowcount == 0:
+                    raise ValueError(f"Delivery {order_id} not found for this partner.")
+
+
 def advance_status(order_id):
     """Move an order to the next status in the lifecycle. Returns the new status.
 
@@ -216,7 +416,9 @@ def advance_status(order_id):
                 if row is None:
                     raise ValueError(f"Order {order_id} not found.")
                 current = row[0]
-                idx = STATUS_FLOW.index(current)  # unknown status raises ValueError
+                if current not in STATUS_FLOW:  # e.g. 'out for delivery' — partner-managed
+                    return current
+                idx = STATUS_FLOW.index(current)
                 if idx == len(STATUS_FLOW) - 1:
                     return current
                 new_status = STATUS_FLOW[idx + 1]
