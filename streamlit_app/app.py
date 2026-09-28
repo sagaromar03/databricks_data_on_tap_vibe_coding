@@ -19,13 +19,10 @@ import streamlit as st
 # as `streamlit run streamlit_app/app.py` from the repo root.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import theme  # noqa: E402  (same-dir module; presentation layer)
 from backend import transactions as t  # noqa: E402
 
 st.set_page_config(page_title="Data on Tap", page_icon="🍕", layout="wide")
-
-
-def money(value):
-    return f"{Decimal(value):.2f}"
 
 
 @st.cache_data(ttl=300)
@@ -56,48 +53,51 @@ def pick_branch(key_prefix):
 # Customer view
 # --------------------------------------------------------------------------- #
 def customer_view():
-    st.header("Order pizza")
+    theme.hero(st, "Order pizza", "Fresh from the nearest branch")
 
     if "last_order" in st.session_state:
         lo = st.session_state["last_order"]
         st.success(f"Order #{lo['id']} placed — total {lo['total']} kr. Enjoy!")
 
-    left, right = st.columns([3, 2])
+    left, right = st.columns([3, 2], gap="large")
 
     with left:
-        branch = pick_branch("cust")
+        bcol, ccol = st.columns(2)
+        with bcol:
+            branch = pick_branch("cust")
         branch_id = branch["branch_id"]
-
-        customers = load_customers()
-        customer = st.selectbox(
-            "Ordering as",
-            customers,
-            format_func=lambda c: c["name"],
-            key="cust_customer",
-        )
-
-        delivery_mode = st.radio(
-            "Delivery mode", ["pickup", "delivery"], horizontal=True, key="cust_mode"
-        )
+        with ccol:
+            customers = load_customers()
+            customer = st.selectbox(
+                "Ordering as", customers, format_func=lambda c: c["name"], key="cust_customer"
+            )
+            delivery_mode = st.radio(
+                "Delivery mode", ["pickup", "delivery"], horizontal=True, key="cust_mode"
+            )
 
         st.subheader("Menu")
         menu = t.get_menu(branch_id)
         cart = []
         for m in menu:
-            c1, c2, c3, c4 = st.columns([4, 2, 2, 2])
-            c1.markdown(f"**{m['pizza_name']}**  \n*{m['diet_type']}*")
-            c2.write(f"{money(m['price'])} kr")
-            stock = int(m["stock_quantity"])
-            c3.write(f"{stock} left" if stock > 0 else "sold out")
-            qty = c4.number_input(
-                "qty",
-                min_value=0,
-                max_value=stock,
-                step=1,
-                key=f"qty_{branch_id}_{m['id']}",
-                label_visibility="collapsed",
-                disabled=stock == 0,
-            )
+            with st.container(border=True):
+                info, qcol = st.columns([5, 2])
+                stock = int(m["stock_quantity"])
+                info.markdown(
+                    f"<span class='pizza-name'>{m['pizza_name']}</span> "
+                    f"{theme.diet_badge(m['diet_type'])}"
+                    f"<div class='item-sub'><span class='price'>{theme.money(m['price'])} kr</span> "
+                    f"{theme.stock_pill(stock)}</div>",
+                    unsafe_allow_html=True,
+                )
+                qty = qcol.number_input(
+                    "qty",
+                    min_value=0,
+                    max_value=stock,
+                    step=1,
+                    key=f"qty_{branch_id}_{m['id']}",
+                    label_visibility="collapsed",
+                    disabled=stock == 0,
+                )
             if qty > 0:
                 cart.append(
                     {
@@ -113,17 +113,26 @@ def customer_view():
         if not cart:
             st.caption("Add pizzas from the menu to build your order.")
         else:
-            for it in cart:
-                st.write(f"{it['quantity']} × {it['name']} — {money(it['price'] * it['quantity'])} kr")
+            lines = "".join(
+                f"<div class='cart-line'><span><span class='q'>{it['quantity']} ×</span> "
+                f"{it['name']}</span><span>{theme.money(it['price'] * it['quantity'])} kr</span></div>"
+                for it in cart
+            )
+            st.markdown(lines, unsafe_allow_html=True)
 
         subtotal = sum((it["price"] * it["quantity"] for it in cart), Decimal("0"))
         vat = (subtotal * Decimal("12") / Decimal("100")).quantize(Decimal("0.01"))
         total = subtotal + vat
 
-        st.divider()
-        st.write(f"Subtotal: **{money(subtotal)} kr**")
-        st.write(f"VAT (12%): **{money(vat)} kr**")
-        st.write(f"Total: **{money(total)} kr**")
+        st.markdown(
+            f"<div class='summary'>"
+            f"<div class='row'><span>Subtotal</span><span>{theme.money(subtotal)} kr</span></div>"
+            f"<div class='row'><span>VAT (12%)</span><span>{theme.money(vat)} kr</span></div>"
+            f"<div class='row total'><span>Total</span><span>{theme.money(total)} kr</span></div>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+        st.write("")
 
         if st.button("Place order", type="primary", disabled=not cart, use_container_width=True):
             try:
@@ -135,7 +144,7 @@ def customer_view():
                 )
                 st.session_state["last_order"] = {
                     "id": result["order_id"],
-                    "total": money(result["total_price"]),
+                    "total": theme.money(result["total_price"]),
                 }
                 for it in cart:
                     st.session_state.pop(f"qty_{branch_id}_{it['menu_id']}", None)
@@ -147,16 +156,8 @@ def customer_view():
 # --------------------------------------------------------------------------- #
 # Kitchen view
 # --------------------------------------------------------------------------- #
-STATUS_LABELS = {
-    "order placed": "🟡 order placed",
-    "preparing": "🔵 preparing",
-    "packed": "🟣 packed",
-    "delivered": "🟢 delivered",
-}
-
-
 def kitchen_view():
-    st.header("Kitchen")
+    theme.hero(st, "Kitchen", "Live queue & stock")
     branch = pick_branch("kitchen")
     branch_id = branch["branch_id"]
 
@@ -172,16 +173,15 @@ def kitchen_view():
                 head, action = st.columns([5, 1])
                 with head:
                     ordered_at = o["order_time"]
-                    when = ordered_at.strftime("%b %d %H:%M") if hasattr(ordered_at, "strftime") else str(ordered_at)
-                    st.markdown(
-                        f"**Order #{o['order_id']}** · {o['customer_name']} · "
-                        f"{o['delivery_mode']} · {when}"
-                    )
+                    when = ordered_at.strftime("%b %d · %H:%M") if hasattr(ordered_at, "strftime") else str(ordered_at)
                     lines = ", ".join(f"{i['quantity']}× {i['pizza_name']}" for i in o["items"])
-                    st.write(lines or "—")
-                    st.write(
-                        f"{STATUS_LABELS.get(o['status'], o['status'])}  ·  "
-                        f"**{money(o['total_price'])} kr**"
+                    st.markdown(
+                        f"<div class='order-head'>Order #{o['order_id']} "
+                        f"{theme.status_pill(o['status'])}</div>"
+                        f"<div class='order-meta'>{o['customer_name']} · {o['delivery_mode']} · {when}</div>"
+                        f"<div class='order-items'>{lines or '—'}</div>"
+                        f"<span class='price'>{theme.money(o['total_price'])} kr</span>",
+                        unsafe_allow_html=True,
                     )
                 with action:
                     if o["status"] != "delivered":
@@ -192,26 +192,32 @@ def kitchen_view():
     with stock_tab:
         menu = t.get_menu(branch_id)
         for m in menu:
-            c1, c2, c3, c4 = st.columns([4, 2, 2, 2])
-            c1.markdown(f"**{m['pizza_name']}**")
-            c2.write(f"{int(m['stock_quantity'])} in stock")
-            amount = c3.number_input(
-                "add",
-                min_value=1,
-                value=5,
-                step=1,
-                key=f"restock_{branch_id}_{m['id']}",
-                label_visibility="collapsed",
-            )
-            if c4.button("Restock", key=f"restock_btn_{branch_id}_{m['id']}", use_container_width=True):
-                t.restock(branch_id, m["id"], int(amount))
-                st.rerun()
+            with st.container(border=True):
+                info, acol, bcol = st.columns([4, 2, 2])
+                stock = int(m["stock_quantity"])
+                info.markdown(
+                    f"<span class='stock-name'>{m['pizza_name']}</span>"
+                    f"<div class='item-sub'>{theme.stock_pill(stock)}</div>",
+                    unsafe_allow_html=True,
+                )
+                amount = acol.number_input(
+                    "add",
+                    min_value=1,
+                    value=5,
+                    step=1,
+                    key=f"restock_{branch_id}_{m['id']}",
+                    label_visibility="collapsed",
+                )
+                if bcol.button("Restock", key=f"restock_btn_{branch_id}_{m['id']}", use_container_width=True):
+                    t.restock(branch_id, m["id"], int(amount))
+                    st.rerun()
 
 
 # --------------------------------------------------------------------------- #
 # Shell
 # --------------------------------------------------------------------------- #
 def main():
+    theme.inject(st)
     with st.sidebar:
         st.title("🍕 Data on Tap")
         st.caption("Pizza ordering on Databricks Lakebase")
