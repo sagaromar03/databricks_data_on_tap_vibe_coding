@@ -27,6 +27,31 @@ CSS = """
 .brand .accent { color: var(--accent); }
 .brand-sub { color: var(--muted); font-size: 1.05rem; margin: .1rem 0 1.4rem; }
 
+/* Landing hero banner */
+.banner {
+  position: relative;
+  background: linear-gradient(135deg, #FF6B35 0%, #E23E2C 55%, #B4271A 100%);
+  border-radius: 20px;
+  padding: 3.2rem 2.6rem;
+  margin: .2rem 0 1.6rem;
+  color: #fff;
+  overflow: hidden;
+  box-shadow: 0 12px 34px rgba(226,62,44,.28);
+}
+.banner::after {
+  content: "🍕";
+  position: absolute;
+  right: 1.4rem; bottom: -1.2rem;
+  font-size: 8rem;
+  opacity: .18;
+  transform: rotate(-12deg);
+}
+.banner .eyebrow { text-transform: uppercase; letter-spacing: .12em; font-size: .75rem;
+  font-weight: 700; opacity: .85; }
+.banner h1 { font-size: 2.9rem; line-height: 1.05; margin: .35rem 0 0; letter-spacing: -.02em; }
+.banner p { font-size: 1.15rem; opacity: .95; margin: .6rem 0 0; max-width: 34rem; }
+.nav-brand { font-weight: 800; font-size: 1.15rem; padding-top: .35rem; }
+
 /* Page hero */
 .hero { display: flex; align-items: baseline; gap: .6rem; margin-bottom: .2rem; }
 .hero h1 { font-size: 2.1rem; margin: 0; letter-spacing: -.02em; }

@@ -104,18 +104,39 @@ def _partner_form():
     st.caption("Delivery-partner accounts are created by your organization. Demo: `oskar@dataontap.se` / `partner`.")
 
 
+ROLE_ICONS = {"Customer": "🧑", "Kitchen": "🧑‍🍳", "Delivery partner": "🛵"}
+
+
 def login_page():
-    """Branded landing — pick a role, then sign in."""
+    """Branded landing — big hero banner, role menu in the top-right."""
+    # Top bar: brand on the left, sign-in menu on the right.
+    brand_c, menu_c = st.columns([3, 1])
+    brand_c.markdown("<div class='nav-brand'>🍕 Data on Tap</div>", unsafe_allow_html=True)
+    with menu_c:
+        current = st.session_state.get("login_role", "Customer")
+        with st.popover(f"{ROLE_ICONS[current]}  Sign in", use_container_width=True):
+            st.radio(
+                "I want to sign in as",
+                ["Customer", "Kitchen", "Delivery partner"],
+                key="login_role",
+            )
+
+    # Big hero banner.
     st.markdown(
-        "<div class='brand'>🍕 Data on <span class='accent'>Tap</span></div>"
-        "<div class='brand-sub'>Fresh pizza, ordered and delivered — powered by Databricks Lakebase.</div>",
+        "<div class='banner'>"
+        "<div class='eyebrow'>Pizza ordering on Databricks Lakebase</div>"
+        "<h1>Data on Tap</h1>"
+        "<p>Order from your nearest branch, watch the kitchen work the queue, "
+        "and get it delivered — one atomic transaction at a time.</p>"
+        "</div>",
         unsafe_allow_html=True,
     )
+
+    # Sign-in form for the chosen role.
+    role = st.session_state.get("login_role", "Customer")
     _, mid, _ = st.columns([1, 2, 1])
     with mid:
-        role = st.selectbox(
-            "Sign in as", ["Customer", "Kitchen", "Delivery partner"], key="login_role"
-        )
+        st.markdown(f"#### {ROLE_ICONS[role]}  Sign in as {role}")
         if role == "Customer":
             _customer_forms()
         elif role == "Kitchen":
@@ -435,15 +456,17 @@ def partner_view():
 # --------------------------------------------------------------------------- #
 def main():
     theme.inject(st)
-    with st.sidebar:
-        st.title("🍕 Data on Tap")
-        st.caption("Pizza ordering on Databricks Lakebase")
-        signed_in = (
-            st.session_state.get("auth_customer")
-            or st.session_state.get("auth_staff")
-            or st.session_state.get("auth_partner")
-        )
-        if signed_in:
+    signed_in = (
+        st.session_state.get("auth_customer")
+        or st.session_state.get("auth_staff")
+        or st.session_state.get("auth_partner")
+    )
+
+    # Sidebar only once signed in; the landing page is clean and full-width.
+    if signed_in:
+        with st.sidebar:
+            st.title("🍕 Data on Tap")
+            st.caption("Pizza ordering on Databricks Lakebase")
             role = (
                 "Kitchen" if "auth_staff" in st.session_state
                 else "Delivery partner" if "auth_partner" in st.session_state
@@ -455,10 +478,10 @@ def main():
                 st.session_state.pop("auth_staff", None)
                 st.session_state.pop("auth_partner", None)
                 st.rerun()
-        if st.button("Refresh data", use_container_width=True):
-            load_branches.clear()
-            st.rerun()
-        st.divider()
+            if st.button("Refresh data", use_container_width=True):
+                load_branches.clear()
+                st.rerun()
+            st.divider()
 
     if "auth_customer" in st.session_state:
         PAGES["menu"] = st.Page(menu_view, title="Menu", icon="🍕", url_path="menu", default=True)
@@ -470,13 +493,17 @@ def main():
             "Shop": [PAGES["menu"]],
             "Your account": [PAGES["account"], PAGES["addresses"], PAGES["address_form"], PAGES["orders"]],
         }
+        st.navigation(pages).run()
     elif "auth_staff" in st.session_state:
-        pages = [st.Page(kitchen_view, title="Kitchen", icon="🧑‍🍳", url_path="kitchen", default=True)]
+        st.navigation([st.Page(kitchen_view, title="Kitchen", icon="🧑‍🍳", url_path="kitchen", default=True)]).run()
     elif "auth_partner" in st.session_state:
-        pages = [st.Page(partner_view, title="Deliveries", icon="🛵", url_path="deliveries", default=True)]
+        st.navigation([st.Page(partner_view, title="Deliveries", icon="🛵", url_path="deliveries", default=True)]).run()
     else:
-        pages = [st.Page(login_page, title="Sign in", icon="🔑", url_path="signin", default=True)]
-    st.navigation(pages).run()
+        # Signed out: hide the nav chrome so the landing is a clean full-width page.
+        st.navigation(
+            [st.Page(login_page, title="Sign in", url_path="signin", default=True)],
+            position="hidden",
+        ).run()
 
 
 main()
