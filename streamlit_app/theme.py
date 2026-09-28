@@ -22,6 +22,11 @@ CSS = """
 /* Tighten the top padding and widen a touch */
 .block-container { padding-top: 2.2rem; max-width: 1100px; }
 
+/* Landing brand */
+.brand { font-size: 2.6rem; font-weight: 800; letter-spacing: -.02em; }
+.brand .accent { color: var(--accent); }
+.brand-sub { color: var(--muted); font-size: 1.05rem; margin: .1rem 0 1.4rem; }
+
 /* Page hero */
 .hero { display: flex; align-items: baseline; gap: .6rem; margin-bottom: .2rem; }
 .hero h1 { font-size: 2.1rem; margin: 0; letter-spacing: -.02em; }

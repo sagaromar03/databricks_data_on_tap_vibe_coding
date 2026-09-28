@@ -53,9 +53,16 @@ INSERT INTO customer_addresses (customer_id, label, street, city, postal_code) V
     (1, 'Home', 'Gotgatan 12',   'Stockholm', '118 46'),
     (1, 'Work', 'Sturegatan 4',  'Stockholm', '114 35');
 
+-- Staff logins (org-provisioned; no self-signup). Demo password is "kitchen".
+-- kitchen.goteborg -> branch 3 (Pizza Hut Centrum, Goteborg); kitchen.sodermalm -> branch 1.
+INSERT INTO staff (name, email, password_hash, branch_id) VALUES
+    ('Goteborg Kitchen', 'kitchen.goteborg@dataontap.se', 'pbkdf2_sha256$200000$f2ae43958a62ff5026ab237b7df3d835$4d57ea7fdac955632e77efc2bc81d8b85387fc2564797aa267f028d9666d3a41', 3),
+    ('Sodermalm Kitchen', 'kitchen.sodermalm@dataontap.se', 'pbkdf2_sha256$200000$f2ae43958a62ff5026ab237b7df3d835$4d57ea7fdac955632e77efc2bc81d8b85387fc2564797aa267f028d9666d3a41', 1);
+
 -- Delivery partners: a few, assigned to branches (event-day assignment logic uses these).
-INSERT INTO delivery_partners (name, phone, status, current_branch_id) VALUES
-    ('Oskar Falk',    '070-6666666', 'available', 1),
-    ('Maja Holm',     '070-7777777', 'available', 1),
-    ('Nils Ek',       '070-8888888', 'available', 3),
-    ('Freja Lund',    '070-9999999', 'available', 5);
+-- email + demo password "partner" for the delivery-partner login.
+INSERT INTO delivery_partners (name, email, password_hash, phone, status, current_branch_id) VALUES
+    ('Oskar Falk',  'oskar@dataontap.se', 'pbkdf2_sha256$200000$571f66e92708bd26caaa657d6c012430$2e7de6e9f40d8ab5be0370c1737d2d9e8e38399ed96c1a431586cb684c7031f9', '070-6666666', 'available', 1),
+    ('Maja Holm',   'maja@dataontap.se',  'pbkdf2_sha256$200000$571f66e92708bd26caaa657d6c012430$2e7de6e9f40d8ab5be0370c1737d2d9e8e38399ed96c1a431586cb684c7031f9', '070-7777777', 'available', 1),
+    ('Nils Ek',     'nils@dataontap.se',  'pbkdf2_sha256$200000$571f66e92708bd26caaa657d6c012430$2e7de6e9f40d8ab5be0370c1737d2d9e8e38399ed96c1a431586cb684c7031f9', '070-8888888', 'available', 3),
+    ('Freja Lund',  'freja@dataontap.se', 'pbkdf2_sha256$200000$571f66e92708bd26caaa657d6c012430$2e7de6e9f40d8ab5be0370c1737d2d9e8e38399ed96c1a431586cb684c7031f9', '070-9999999', 'available', 5);

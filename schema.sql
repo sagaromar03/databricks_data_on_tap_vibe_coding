@@ -7,6 +7,7 @@ DROP TABLE IF EXISTS orders;
 DROP TABLE IF EXISTS inventory;
 DROP TABLE IF EXISTS delivery_partners;
 DROP TABLE IF EXISTS customer_addresses;
+DROP TABLE IF EXISTS staff;
 DROP TABLE IF EXISTS customers;
 DROP TABLE IF EXISTS menu;
 DROP TABLE IF EXISTS branches;
@@ -31,10 +32,13 @@ CREATE TABLE customers (
     created_at    TIMESTAMP DEFAULT now()
 );
 
--- 3. delivery_partners — first-class, seeded; assignment logic is event-day
+-- 3. delivery_partners — first-class, seeded; assignment logic is event-day.
+-- email + password_hash back the delivery-partner login (org-provisioned).
 CREATE TABLE delivery_partners (
     partner_id        SERIAL PRIMARY KEY,
     name              TEXT NOT NULL,
+    email             TEXT UNIQUE,                         -- login handle (nullable for legacy rows)
+    password_hash     TEXT,
     phone             TEXT,
     status            TEXT NOT NULL DEFAULT 'available',   -- available | busy | offline
     current_branch_id INT REFERENCES branches(branch_id),
@@ -50,6 +54,17 @@ CREATE TABLE customer_addresses (
     city        TEXT NOT NULL,
     postal_code TEXT,
     created_at  TIMESTAMP DEFAULT now()
+);
+
+-- 3c. staff — kitchen/operations logins, provisioned by the org (no self-signup).
+-- Each staff member belongs to one branch and only sees that branch's kitchen.
+CREATE TABLE staff (
+    staff_id      SERIAL PRIMARY KEY,
+    name          TEXT NOT NULL,
+    email         TEXT NOT NULL UNIQUE,       -- the login handle
+    password_hash TEXT NOT NULL,
+    branch_id     INT NOT NULL REFERENCES branches(branch_id),
+    created_at    TIMESTAMP DEFAULT now()
 );
 
 -- 4. menu — brand-wide catalog (no stock here; stock is per-branch)

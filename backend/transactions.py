@@ -328,6 +328,22 @@ def get_customer_orders(customer_id, limit=10):
         return orders
 
 
+def get_delivery_orders(branch_id):
+    """Delivery-mode orders for a branch that aren't delivered yet (partner view)."""
+    with connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT o.order_id, o.order_time, o.status, o.total_price, c.name AS customer_name
+            FROM orders o
+            JOIN customers c ON c.customer_id = o.customer_id
+            WHERE o.branch_id = %s AND o.delivery_mode = 'delivery' AND o.status <> 'delivered'
+            ORDER BY o.order_time
+            """,
+            (branch_id,),
+        )
+        return _rows_as_dicts(cur)
+
+
 def advance_status(order_id):
     """Move an order to the next status in the lifecycle. Returns the new status.
 

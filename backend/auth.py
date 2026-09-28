@@ -82,3 +82,54 @@ def log_in(email, password):
     if row is None or row[3] is None or not verify_password(password, row[3]):
         raise AuthError("Invalid email or password.")
     return {"customer_id": row[0], "name": row[1], "email": row[2]}
+
+
+def staff_log_in(email, password):
+    """Staff sign-in (org-provisioned; no self-signup). Returns staff + their branch."""
+    email = (email or "").strip().lower()
+    with connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT s.staff_id, s.name, s.email, s.password_hash, s.branch_id, b.branch_name
+            FROM staff s
+            JOIN branches b ON b.branch_id = s.branch_id
+            WHERE lower(s.email) = %s
+            """,
+            (email,),
+        )
+        row = cur.fetchone()
+    if row is None or not verify_password(password, row[3]):
+        raise AuthError("Invalid email or password.")
+    return {
+        "staff_id": row[0],
+        "name": row[1],
+        "email": row[2],
+        "branch_id": row[4],
+        "branch_name": row[5],
+    }
+
+
+def partner_log_in(email, password):
+    """Delivery-partner sign-in (org-provisioned). Returns partner + their branch."""
+    email = (email or "").strip().lower()
+    with connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT p.partner_id, p.name, p.email, p.password_hash,
+                   p.current_branch_id, b.branch_name
+            FROM delivery_partners p
+            LEFT JOIN branches b ON b.branch_id = p.current_branch_id
+            WHERE lower(p.email) = %s
+            """,
+            (email,),
+        )
+        row = cur.fetchone()
+    if row is None or row[3] is None or not verify_password(password, row[3]):
+        raise AuthError("Invalid email or password.")
+    return {
+        "partner_id": row[0],
+        "name": row[1],
+        "email": row[2],
+        "branch_id": row[4],
+        "branch_name": row[5],
+    }

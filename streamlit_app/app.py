@@ -52,34 +52,76 @@ def pick_branch(key_prefix):
 # --------------------------------------------------------------------------- #
 # Customer view
 # --------------------------------------------------------------------------- #
+def _customer_forms():
+    login_tab, signup_tab = st.tabs(["Log in", "Sign up"])
+    with login_tab:
+        with st.form("login_form"):
+            email = st.text_input("Email")
+            password = st.text_input("Password", type="password")
+            if st.form_submit_button("Log in", type="primary", use_container_width=True):
+                try:
+                    st.session_state["auth_customer"] = auth.log_in(email, password)
+                    st.rerun()
+                except auth.AuthError as e:
+                    st.error(str(e))
+        st.caption("Demo: `anna@example.se` / `pizza`.")
+    with signup_tab:
+        with st.form("signup_form"):
+            name = st.text_input("Name")
+            email = st.text_input("Email", key="su_email")
+            password = st.text_input("Password (min 6 chars)", type="password", key="su_pw")
+            if st.form_submit_button("Create account", type="primary", use_container_width=True):
+                try:
+                    st.session_state["auth_customer"] = auth.sign_up(name, email, password)
+                    st.rerun()
+                except auth.AuthError as e:
+                    st.error(str(e))
+
+
+def _staff_form():
+    with st.form("staff_login_form"):
+        email = st.text_input("Staff email", key="st_email")
+        password = st.text_input("Password", type="password", key="st_pw")
+        if st.form_submit_button("Log in to kitchen", type="primary", use_container_width=True):
+            try:
+                st.session_state["auth_staff"] = auth.staff_log_in(email, password)
+                st.rerun()
+            except auth.AuthError as e:
+                st.error(str(e))
+    st.caption("Kitchen accounts are created by your organization. Demo: `kitchen.goteborg@dataontap.se` / `kitchen`.")
+
+
+def _partner_form():
+    with st.form("partner_login_form"):
+        email = st.text_input("Partner email", key="pt_email")
+        password = st.text_input("Password", type="password", key="pt_pw")
+        if st.form_submit_button("Log in as partner", type="primary", use_container_width=True):
+            try:
+                st.session_state["auth_partner"] = auth.partner_log_in(email, password)
+                st.rerun()
+            except auth.AuthError as e:
+                st.error(str(e))
+    st.caption("Delivery-partner accounts are created by your organization. Demo: `oskar@dataontap.se` / `partner`.")
+
+
 def login_page():
-    """Login / signup page (shown when no one is signed in)."""
-    theme.hero(st, "Welcome", "Sign in to order")
+    """Branded landing — pick a role, then sign in."""
+    st.markdown(
+        "<div class='brand'>🍕 Data on <span class='accent'>Tap</span></div>"
+        "<div class='brand-sub'>Fresh pizza, ordered and delivered — powered by Databricks Lakebase.</div>",
+        unsafe_allow_html=True,
+    )
     _, mid, _ = st.columns([1, 2, 1])
     with mid:
-        login_tab, signup_tab = st.tabs(["Log in", "Sign up"])
-        with login_tab:
-            with st.form("login_form"):
-                email = st.text_input("Email")
-                password = st.text_input("Password", type="password")
-                if st.form_submit_button("Log in", type="primary", use_container_width=True):
-                    try:
-                        st.session_state["auth_customer"] = auth.log_in(email, password)
-                        st.rerun()
-                    except auth.AuthError as e:
-                        st.error(str(e))
-            st.caption("Demo accounts use password `pizza` — e.g. `anna@example.se`.")
-        with signup_tab:
-            with st.form("signup_form"):
-                name = st.text_input("Name")
-                email = st.text_input("Email", key="su_email")
-                password = st.text_input("Password (min 6 chars)", type="password", key="su_pw")
-                if st.form_submit_button("Create account", type="primary", use_container_width=True):
-                    try:
-                        st.session_state["auth_customer"] = auth.sign_up(name, email, password)
-                        st.rerun()
-                    except auth.AuthError as e:
-                        st.error(str(e))
+        role = st.selectbox(
+            "Sign in as", ["Customer", "Kitchen", "Delivery partner"], key="login_role"
+        )
+        if role == "Customer":
+            _customer_forms()
+        elif role == "Kitchen":
+            _staff_form()
+        else:
+            _partner_form()
 
 
 def menu_view():
@@ -299,9 +341,12 @@ def order_history_view():
 # Kitchen view
 # --------------------------------------------------------------------------- #
 def kitchen_view():
-    theme.hero(st, "Kitchen", "Live queue & stock")
-    branch = pick_branch("kitchen")
-    branch_id = branch["branch_id"]
+    staff = st.session_state.get("auth_staff")
+    if staff is None:
+        st.info("Please sign in as staff to view the kitchen.")
+        return
+    theme.hero(st, "Kitchen", f"{staff['branch_name']} · {staff['name']}")
+    branch_id = staff["branch_id"]
 
     queue_tab, stock_tab = st.tabs(["Order queue", "Stock & restock"])
 
@@ -356,6 +401,36 @@ def kitchen_view():
 
 
 # --------------------------------------------------------------------------- #
+# Delivery-partner view
+# --------------------------------------------------------------------------- #
+def partner_view():
+    partner = st.session_state.get("auth_partner")
+    if partner is None:
+        st.info("Please sign in as a delivery partner.")
+        return
+    branch_label = partner.get("branch_name") or "Unassigned"
+    theme.hero(st, "Deliveries", f"{branch_label} · {partner['name']}")
+
+    if not partner.get("branch_id"):
+        st.caption("You aren't assigned to a branch yet.")
+        return
+
+    orders = t.get_delivery_orders(partner["branch_id"])
+    if not orders:
+        st.caption("No delivery orders right now.")
+    for o in orders:
+        when = o["order_time"].strftime("%b %d · %H:%M") if hasattr(o["order_time"], "strftime") else str(o["order_time"])
+        with st.container(border=True):
+            st.markdown(
+                f"<div class='order-head'>Order #{o['order_id']} {theme.status_pill(o['status'])}</div>"
+                f"<div class='order-meta'>{o['customer_name']} · {when}</div>"
+                f"<span class='price'>{theme.money(o['total_price'])} kr</span>",
+                unsafe_allow_html=True,
+            )
+    st.caption("Claiming and first-to-accept assignment is an event-day extension.")
+
+
+# --------------------------------------------------------------------------- #
 # Shell
 # --------------------------------------------------------------------------- #
 def main():
@@ -363,17 +438,27 @@ def main():
     with st.sidebar:
         st.title("🍕 Data on Tap")
         st.caption("Pizza ordering on Databricks Lakebase")
-        if "auth_customer" in st.session_state:
-            st.write(f"Signed in as **{st.session_state['auth_customer']['name']}**")
+        signed_in = (
+            st.session_state.get("auth_customer")
+            or st.session_state.get("auth_staff")
+            or st.session_state.get("auth_partner")
+        )
+        if signed_in:
+            role = (
+                "Kitchen" if "auth_staff" in st.session_state
+                else "Delivery partner" if "auth_partner" in st.session_state
+                else "Customer"
+            )
+            st.write(f"Signed in as **{signed_in['name']}** · {role}")
             if st.button("Log out", use_container_width=True):
-                del st.session_state["auth_customer"]
+                st.session_state.pop("auth_customer", None)
+                st.session_state.pop("auth_staff", None)
+                st.session_state.pop("auth_partner", None)
                 st.rerun()
         if st.button("Refresh data", use_container_width=True):
             load_branches.clear()
             st.rerun()
         st.divider()
-
-    kitchen = st.Page(kitchen_view, title="Kitchen", icon="🧑‍🍳", url_path="kitchen")
 
     if "auth_customer" in st.session_state:
         PAGES["menu"] = st.Page(menu_view, title="Menu", icon="🍕", url_path="menu", default=True)
@@ -384,13 +469,13 @@ def main():
         pages = {
             "Shop": [PAGES["menu"]],
             "Your account": [PAGES["account"], PAGES["addresses"], PAGES["address_form"], PAGES["orders"]],
-            "Staff": [kitchen],
         }
+    elif "auth_staff" in st.session_state:
+        pages = [st.Page(kitchen_view, title="Kitchen", icon="🧑‍🍳", url_path="kitchen", default=True)]
+    elif "auth_partner" in st.session_state:
+        pages = [st.Page(partner_view, title="Deliveries", icon="🛵", url_path="deliveries", default=True)]
     else:
-        pages = [
-            st.Page(login_page, title="Sign in", icon="🔑", url_path="signin", default=True),
-            kitchen,
-        ]
+        pages = [st.Page(login_page, title="Sign in", icon="🔑", url_path="signin", default=True)]
     st.navigation(pages).run()
 
 
