@@ -20,13 +20,14 @@ CREATE TABLE branches (
     longitude    NUMERIC(9,6)         -- nullable; reserved for event-day geo
 );
 
--- 2. customers — first-class, seeded (no real login in MVP)
+-- 2. customers — first-class; email + password_hash back the login flow
 CREATE TABLE customers (
-    customer_id  SERIAL PRIMARY KEY,
-    name         TEXT NOT NULL,
-    email        TEXT,
-    phone        TEXT,
-    created_at   TIMESTAMP DEFAULT now()
+    customer_id   SERIAL PRIMARY KEY,
+    name          TEXT NOT NULL,
+    email         TEXT NOT NULL UNIQUE,        -- lowercased on signup; the login handle
+    phone         TEXT,
+    password_hash TEXT,                        -- pbkdf2_sha256$iter$salt$hash; NULL = no login yet
+    created_at    TIMESTAMP DEFAULT now()
 );
 
 -- 3. delivery_partners — first-class, seeded; assignment logic is event-day

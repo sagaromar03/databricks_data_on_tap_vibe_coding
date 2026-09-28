@@ -39,13 +39,14 @@ WHERE branch_id = 1 AND menu_id IN (SELECT id FROM menu WHERE pizza_name = 'Pepp
 UPDATE inventory SET stock_quantity = 2
 WHERE branch_id = 1 AND menu_id IN (SELECT id FROM menu WHERE pizza_name = 'BBQ Chicken');
 
--- Customers: a handful of fake people to pick from.
-INSERT INTO customers (name, email, phone) VALUES
-    ('Anna Svensson',   'anna@example.se',   '070-1111111'),
-    ('Erik Lindqvist',  'erik@example.se',   '070-2222222'),
-    ('Sara Johansson',  'sara@example.se',   '070-3333333'),
-    ('Johan Berg',      'johan@example.se',  '070-4444444'),
-    ('Lena Nilsson',    'lena@example.se',   '070-5555555');
+-- Customers: a handful of fake people. All seeded accounts share the demo
+-- password "pizza" (pbkdf2_sha256 hash below) so you can log in on event day.
+INSERT INTO customers (name, email, phone, password_hash) VALUES
+    ('Anna Svensson',   'anna@example.se',   '070-1111111', 'pbkdf2_sha256$200000$d8157514a1c513ca4ce9ca56a052417a$71af18ab8e4778f6a60d88a4288c77721722ab20004a30790824e5989f24b985'),
+    ('Erik Lindqvist',  'erik@example.se',   '070-2222222', 'pbkdf2_sha256$200000$d8157514a1c513ca4ce9ca56a052417a$71af18ab8e4778f6a60d88a4288c77721722ab20004a30790824e5989f24b985'),
+    ('Sara Johansson',  'sara@example.se',   '070-3333333', 'pbkdf2_sha256$200000$d8157514a1c513ca4ce9ca56a052417a$71af18ab8e4778f6a60d88a4288c77721722ab20004a30790824e5989f24b985'),
+    ('Johan Berg',      'johan@example.se',  '070-4444444', 'pbkdf2_sha256$200000$d8157514a1c513ca4ce9ca56a052417a$71af18ab8e4778f6a60d88a4288c77721722ab20004a30790824e5989f24b985'),
+    ('Lena Nilsson',    'lena@example.se',   '070-5555555', 'pbkdf2_sha256$200000$d8157514a1c513ca4ce9ca56a052417a$71af18ab8e4778f6a60d88a4288c77721722ab20004a30790824e5989f24b985');
 
 -- Delivery partners: a few, assigned to branches (event-day assignment logic uses these).
 INSERT INTO delivery_partners (name, phone, status, current_branch_id) VALUES

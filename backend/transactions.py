@@ -203,6 +203,44 @@ def get_orders(branch_id, include_delivered=False):
         return orders
 
 
+def get_customer_orders(customer_id, limit=10):
+    """A single customer's own orders (all branches), newest first, with items."""
+    with connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT o.order_id, o.order_time, o.status, o.delivery_mode,
+                   o.total_price, b.branch_name
+            FROM orders o
+            JOIN branches b ON b.branch_id = o.branch_id
+            WHERE o.customer_id = %s
+            ORDER BY o.order_time DESC
+            LIMIT %s
+            """,
+            (customer_id, limit),
+        )
+        orders = _rows_as_dicts(cur)
+        if not orders:
+            return []
+
+        order_ids = [o["order_id"] for o in orders]
+        cur.execute(
+            """
+            SELECT oi.order_id, m.pizza_name, oi.quantity
+            FROM order_items oi
+            JOIN menu m ON m.id = oi.menu_id
+            WHERE oi.order_id = ANY(%s)
+            ORDER BY oi.item_id
+            """,
+            (order_ids,),
+        )
+        items_by_order = {}
+        for oid, name, qty in cur.fetchall():
+            items_by_order.setdefault(oid, []).append({"pizza_name": name, "quantity": qty})
+        for order in orders:
+            order["items"] = items_by_order.get(order["order_id"], [])
+        return orders
+
+
 def advance_status(order_id):
     """Move an order to the next status in the lifecycle. Returns the new status.
 

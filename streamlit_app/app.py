@@ -1,12 +1,13 @@
 """Data on Tap — Streamlit UI.
 
-Two separate pages (a view selector, not a login), switched via the sidebar nav:
-  - Customer: pick branch -> browse menu with live stock -> build cart ->
-    see subtotal/VAT/total -> pick delivery mode -> place order.
+Two pages, switched via the sidebar nav:
+  - Order: customer signs in, then browses their branch's menu with live stock,
+    builds a cart, sees subtotal/VAT/total, and places an order. Scoped to the
+    logged-in customer — they only ever see their own account and orders.
   - Kitchen: live order queue (advance status) + per-branch stock and restock.
 
-Imports backend/transactions.py directly and calls it in-process. No UI logic
-lives in the backend; this file holds no SQL.
+Imports backend modules directly and calls them in-process. No UI logic lives
+in the backend; this file holds no SQL.
 """
 
 import sys
@@ -21,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import theme  # noqa: E402  (same-dir module; presentation layer)
 from backend import transactions as t  # noqa: E402
+from backend import auth  # noqa: E402
 
 st.set_page_config(page_title="Data on Tap", page_icon="🍕", layout="wide")
 
@@ -28,11 +30,6 @@ st.set_page_config(page_title="Data on Tap", page_icon="🍕", layout="wide")
 @st.cache_data(ttl=300)
 def load_branches():
     return t.get_branches()
-
-
-@st.cache_data(ttl=300)
-def load_customers():
-    return t.get_customers()
 
 
 def pick_branch(key_prefix):
@@ -52,8 +49,46 @@ def pick_branch(key_prefix):
 # --------------------------------------------------------------------------- #
 # Customer view
 # --------------------------------------------------------------------------- #
+def auth_gate():
+    """Render login/signup until authenticated. Returns the customer dict or None."""
+    if "auth_customer" in st.session_state:
+        return st.session_state["auth_customer"]
+
+    theme.hero(st, "Welcome", "Sign in to order")
+    _, mid, _ = st.columns([1, 2, 1])
+    with mid:
+        login_tab, signup_tab = st.tabs(["Log in", "Sign up"])
+        with login_tab:
+            with st.form("login_form"):
+                email = st.text_input("Email")
+                password = st.text_input("Password", type="password")
+                if st.form_submit_button("Log in", type="primary", use_container_width=True):
+                    try:
+                        st.session_state["auth_customer"] = auth.log_in(email, password)
+                        st.rerun()
+                    except auth.AuthError as e:
+                        st.error(str(e))
+            st.caption("Demo accounts use password `pizza` — e.g. `anna@example.se`.")
+        with signup_tab:
+            with st.form("signup_form"):
+                name = st.text_input("Name")
+                email = st.text_input("Email", key="su_email")
+                password = st.text_input("Password (min 6 chars)", type="password", key="su_pw")
+                if st.form_submit_button("Create account", type="primary", use_container_width=True):
+                    try:
+                        st.session_state["auth_customer"] = auth.sign_up(name, email, password)
+                        st.rerun()
+                    except auth.AuthError as e:
+                        st.error(str(e))
+    return None
+
+
 def customer_view():
-    theme.hero(st, "Order pizza", "Fresh from the nearest branch")
+    customer = auth_gate()
+    if customer is None:
+        return
+
+    theme.hero(st, "Order pizza", f"Signed in as {customer['name']}")
 
     if "last_order" in st.session_state:
         lo = st.session_state["last_order"]
@@ -67,10 +102,6 @@ def customer_view():
             branch = pick_branch("cust")
         branch_id = branch["branch_id"]
         with ccol:
-            customers = load_customers()
-            customer = st.selectbox(
-                "Ordering as", customers, format_func=lambda c: c["name"], key="cust_customer"
-            )
             delivery_mode = st.radio(
                 "Delivery mode", ["pickup", "delivery"], horizontal=True, key="cust_mode"
             )
@@ -152,6 +183,21 @@ def customer_view():
             except t.OutOfStockError as e:
                 st.error(f"{e} Someone grabbed the last one — adjust your cart.")
 
+    my_orders = t.get_customer_orders(customer["customer_id"])
+    if my_orders:
+        st.subheader("Your recent orders")
+        for o in my_orders:
+            when = o["order_time"].strftime("%b %d · %H:%M") if hasattr(o["order_time"], "strftime") else str(o["order_time"])
+            items = ", ".join(f"{i['quantity']}× {i['pizza_name']}" for i in o["items"])
+            st.markdown(
+                f"<div class='order-head'>Order #{o['order_id']} {theme.status_pill(o['status'])}</div>"
+                f"<div class='order-meta'>{o['branch_name']} · {o['delivery_mode']} · {when}</div>"
+                f"<div class='order-items'>{items}</div>"
+                f"<span class='price'>{theme.money(o['total_price'])} kr</span>",
+                unsafe_allow_html=True,
+            )
+            st.divider()
+
 
 # --------------------------------------------------------------------------- #
 # Kitchen view
@@ -221,9 +267,13 @@ def main():
     with st.sidebar:
         st.title("🍕 Data on Tap")
         st.caption("Pizza ordering on Databricks Lakebase")
+        if "auth_customer" in st.session_state:
+            st.write(f"Signed in as **{st.session_state['auth_customer']['name']}**")
+            if st.button("Log out", use_container_width=True):
+                del st.session_state["auth_customer"]
+                st.rerun()
         if st.button("Refresh data", use_container_width=True):
             load_branches.clear()
-            load_customers.clear()
             st.rerun()
         st.divider()
 
