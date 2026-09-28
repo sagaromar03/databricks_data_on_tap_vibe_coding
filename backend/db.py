@@ -30,7 +30,10 @@ def _pick_endpoint(w):
 
     Endpoints may hang off the project directly or off one of its branches.
     """
-    candidates = list(w.postgres.list_endpoints(PROJECT_NAME))
+    try:
+        candidates = list(w.postgres.list_endpoints(PROJECT_NAME))
+    except Exception:
+        candidates = []
     if not candidates:
         for branch in w.postgres.list_branches(PROJECT_NAME):
             candidates = list(w.postgres.list_endpoints(branch.name))
@@ -50,6 +53,10 @@ def _pick_endpoint(w):
 
 def _endpoint_host(ep):
     """Pull the connection hostname off an Endpoint object (field name varies)."""
+    # Primary path: status.hosts.host (Lakebase Autoscaling endpoint).
+    _hosts = getattr(getattr(getattr(ep, "status", None), "hosts", None), "host", None)
+    if isinstance(_hosts, str) and "." in _hosts:
+        return _hosts
     for attr in ("host", "read_write_dns", "dns", "hostname", "endpoint"):
         value = getattr(ep, attr, None)
         if isinstance(value, str) and "." in value:

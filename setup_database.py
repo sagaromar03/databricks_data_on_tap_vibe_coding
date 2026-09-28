@@ -1,4 +1,8 @@
 # Databricks notebook source
+# /// script
+# [tool.databricks.environment]
+# environment_version = "5"
+# ///
 # MAGIC %md
 # MAGIC # Data on Tap — Database Setup
 # MAGIC
@@ -9,6 +13,11 @@
 # MAGIC - Connects to the Lakebase instance with an OAuth token generated in code (no password).
 # MAGIC - Reads `schema.sql` / `seed.sql` from the repo and executes them.
 # MAGIC - Re-runnable: `schema.sql` drops and recreates the tables, `seed.sql` reloads fresh.
+
+# COMMAND ----------
+
+# MAGIC %pip install --upgrade 'databricks-sdk>=0.118.0'
+# MAGIC dbutils.library.restartPython()
 
 # COMMAND ----------
 
@@ -58,6 +67,8 @@ print(f"schema   : {RUN_SCHEMA} | seed: {RUN_SEED} | verify: {VERIFY}")
 
 import sys
 
+# COMMAND ----------
+
 # Point db.py at this project/database, then reuse the app's own connection logic
 # (backend/db.py) so the notebook and the app connect exactly the same way.
 os.environ["LAKEBASE_INSTANCE_NAME"] = INSTANCE_NAME
@@ -68,6 +79,8 @@ if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 
 from backend import db  # noqa: E402
+import importlib
+importlib.reload(db)
 
 conn = db.get_connection()
 print(f"Connected to Lakebase project '{INSTANCE_NAME}' (database {DATABASE_NAME}).")

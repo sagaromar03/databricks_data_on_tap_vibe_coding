@@ -1,4 +1,8 @@
 # Databricks notebook source
+# /// script
+# [tool.databricks.environment]
+# environment_version = "5"
+# ///
 # MAGIC %md
 # MAGIC # Data on Tap — Transactions Smoke Test
 # MAGIC
@@ -8,6 +12,11 @@
 # MAGIC It exercises every function, including the headline **oversell / rollback** guard,
 # MAGIC and asserts results. With `reset_db = yes` it re-runs `schema.sql` + `seed.sql`
 # MAGIC first so every run starts from known stock (safe to re-run).
+
+# COMMAND ----------
+
+# MAGIC %pip install --upgrade 'databricks-sdk>=0.118.0'
+# MAGIC dbutils.library.restartPython()
 
 # COMMAND ----------
 
