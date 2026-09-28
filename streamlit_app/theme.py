@@ -38,19 +38,24 @@ CSS = """
   position: relative; overflow: hidden;
   box-shadow: 0 12px 34px rgba(226,62,44,.28);
 }
-/* The big corner slice — resting position. */
-.split-left::after {
-  content: "🍕"; position: absolute; right: 1rem; bottom: -1.6rem;
-  font-size: 9rem; opacity: .18; transform: rotate(-12deg);
+/* The big corner slice (SVG) — resting position. */
+.split-left .banner-pizza {
+  position: absolute; right: 1.4rem; bottom: 1.4rem; width: 160px; height: 160px;
+  transform: rotate(-10deg); opacity: .96;
+  filter: drop-shadow(0 10px 16px rgba(0,0,0,.28));
 }
+.split-left .banner-pizza svg { width: 100%; height: 100%; display: block; }
 /* One-shot entrance on first load only (class added just once), then it stops. */
-.split-left.animate-in::after {
+.split-left.animate-in .banner-pizza {
   animation: pizza-enter 1.4s cubic-bezier(.22,.61,.36,1) both;
 }
 @keyframes pizza-enter {
-  from { transform: translate(140px, 140px) rotate(70deg) scale(1.4); opacity: 0; }
-  to   { transform: translate(0, 0) rotate(-12deg) scale(1); opacity: .18; }
+  from { transform: translate(150px, 150px) rotate(70deg) scale(1.4); opacity: 0; }
+  to   { transform: translate(0, 0) rotate(-10deg) scale(1); opacity: .96; }
 }
+/* Inline slice on menu cards */
+.pizza-ico { flex: 0 0 auto; }
+.menu-row { display: flex; gap: 12px; align-items: center; }
 .split-left .eyebrow { text-transform: uppercase; letter-spacing: .12em;
   font-size: .74rem; font-weight: 700; opacity: .85; }
 .split-left h1 { font-size: 2.7rem; line-height: 1.05; margin: .4rem 0 0; letter-spacing: -.02em; }
@@ -140,6 +145,29 @@ CSS = """
 .stock-name { font-weight: 600; }
 </style>
 """
+
+
+# Original pizza-slice illustration (not a logo/character): cheese, browned crust,
+# pepperoni, basil. Scales crisply at any size — no image files needed.
+PIZZA = (
+    "<svg viewBox='0 0 64 64' xmlns='http://www.w3.org/2000/svg' aria-hidden='true'>"
+    "<path d='M13 23 Q32 12 51 23 L32 57 Z' fill='#F7C948'/>"
+    "<path d='M13 23 Q32 12 51 23' stroke='#D9843A' stroke-width='6' stroke-linecap='round' fill='none'/>"
+    "<circle cx='25' cy='31' r='3.4' fill='#CE3B2B'/>"
+    "<circle cx='39' cy='32' r='3.4' fill='#CE3B2B'/>"
+    "<circle cx='32' cy='44' r='3' fill='#CE3B2B'/>"
+    "<circle cx='43' cy='27' r='1.9' fill='#5FB878'/>"
+    "<circle cx='22' cy='39' r='1.7' fill='#5FB878'/>"
+    "<circle cx='34' cy='35' r='1.5' fill='#8B5A2B' opacity='.6'/>"
+    "</svg>"
+)
+
+
+def pizza_svg(px=30):
+    """Inline pizza slice at a given pixel size, for a menu card."""
+    return PIZZA.replace(
+        "<svg ", f"<svg class='pizza-ico' width='{px}' height='{px}' ", 1
+    )
 
 
 def inject(st):

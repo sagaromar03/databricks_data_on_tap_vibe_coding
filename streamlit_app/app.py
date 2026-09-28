@@ -150,6 +150,7 @@ def login_page():
     with left:
         st.markdown(
             f"<div class='{panel_class}'>"
+            f"<div class='banner-pizza'>{theme.PIZZA}</div>"
             "<div>"
             "<div class='eyebrow'>Pizza ordering on Lakebase</div>"
             "<h1>Data on Tap</h1>"
@@ -205,10 +206,14 @@ def menu_view():
                 info, qcol = st.columns([5, 2])
                 stock = int(m["stock_quantity"])
                 info.markdown(
+                    "<div class='menu-row'>"
+                    f"{theme.pizza_svg(36)}"
+                    "<div>"
                     f"<span class='pizza-name'>{m['pizza_name']}</span> "
                     f"{theme.diet_badge(m['diet_type'])}"
                     f"<div class='item-sub'><span class='price'>{theme.money(m['price'])} kr</span> "
-                    f"{theme.stock_pill(stock)}</div>",
+                    f"{theme.stock_pill(stock)}</div>"
+                    "</div></div>",
                     unsafe_allow_html=True,
                 )
                 qty = qcol.number_input(
