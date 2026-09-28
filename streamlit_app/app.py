@@ -141,13 +141,15 @@ def _databricks_logo_html():
 
 def login_page():
     """Split landing — branded left panel, sign-in on the right."""
+    # Play the slice's entrance animation only on the first render this session.
+    first_load = not st.session_state.get("banner_shown", False)
+    st.session_state["banner_shown"] = True
+    panel_class = "split-left animate-in" if first_load else "split-left"
+
     left, right = st.columns(2, gap="large")
     with left:
         st.markdown(
-            "<div class='split-left'>"
-            "<span class='floatpizza p1'>🍕</span>"
-            "<span class='floatpizza p2'>🍕</span>"
-            "<span class='floatpizza p3'>🍕</span>"
+            f"<div class='{panel_class}'>"
             "<div>"
             "<div class='eyebrow'>Pizza ordering on Lakebase</div>"
             "<h1>Data on Tap</h1>"
