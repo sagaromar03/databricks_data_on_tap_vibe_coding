@@ -29,6 +29,10 @@ class OutOfStockError(Exception):
         )
 
 
+class DeliveryClaimError(Exception):
+    """Raised when a delivery was already claimed by another partner (lost the race)."""
+
+
 def _rows_as_dicts(cur):
     cols = [d[0] for d in cur.description]
     return [dict(zip(cols, row)) for row in cur.fetchall()]
@@ -160,7 +164,7 @@ def get_orders(branch_id, include_delivered=False):
 
     By default hides delivered orders (the live kitchen queue).
     """
-    status_filter = "" if include_delivered else "AND o.status <> 'delivered'"
+    status_filter = "" if include_delivered else "AND o.status NOT IN ('delivered', 'out for delivery')"
     with connection() as conn, conn.cursor() as cur:
         cur.execute(
             f"""
@@ -329,19 +333,74 @@ def get_customer_orders(customer_id, limit=10):
 
 
 def get_delivery_orders(branch_id):
-    """Delivery-mode orders for a branch that aren't delivered yet (partner view)."""
+    """Unclaimed delivery orders for a branch — available for a partner to accept."""
     with connection() as conn, conn.cursor() as cur:
         cur.execute(
             """
             SELECT o.order_id, o.order_time, o.status, o.total_price, c.name AS customer_name
             FROM orders o
             JOIN customers c ON c.customer_id = o.customer_id
-            WHERE o.branch_id = %s AND o.delivery_mode = 'delivery' AND o.status <> 'delivered'
+            WHERE o.branch_id = %s AND o.delivery_mode = 'delivery'
+              AND o.partner_id IS NULL
+              AND o.status NOT IN ('delivered', 'out for delivery')
             ORDER BY o.order_time
             """,
             (branch_id,),
         )
         return _rows_as_dicts(cur)
+
+
+def get_my_deliveries(partner_id):
+    """Orders this partner has accepted and is currently delivering."""
+    with connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT o.order_id, o.order_time, o.status, o.total_price, c.name AS customer_name
+            FROM orders o
+            JOIN customers c ON c.customer_id = o.customer_id
+            WHERE o.partner_id = %s AND o.status = 'out for delivery'
+            ORDER BY o.order_time
+            """,
+            (partner_id,),
+        )
+        return _rows_as_dicts(cur)
+
+
+def claim_delivery(order_id, partner_id):
+    """Accept a delivery. Atomic first-to-accept: the partner_id IS NULL guard means
+    exactly one partner wins under concurrent accepts; the rest raise DeliveryClaimError.
+    """
+    with connection() as conn:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE orders
+                    SET partner_id = %s, status = 'out for delivery'
+                    WHERE order_id = %s AND partner_id IS NULL
+                    """,
+                    (partner_id, order_id),
+                )
+                if cur.rowcount == 0:
+                    raise DeliveryClaimError(
+                        f"Order {order_id} was already taken by another partner."
+                    )
+
+
+def mark_delivered(order_id, partner_id):
+    """Mark one of this partner's active deliveries as delivered."""
+    with connection() as conn:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE orders SET status = 'delivered'
+                    WHERE order_id = %s AND partner_id = %s AND status = 'out for delivery'
+                    """,
+                    (order_id, partner_id),
+                )
+                if cur.rowcount == 0:
+                    raise ValueError(f"Delivery {order_id} not found for this partner.")
 
 
 def advance_status(order_id):
@@ -357,7 +416,9 @@ def advance_status(order_id):
                 if row is None:
                     raise ValueError(f"Order {order_id} not found.")
                 current = row[0]
-                idx = STATUS_FLOW.index(current)  # unknown status raises ValueError
+                if current not in STATUS_FLOW:  # e.g. 'out for delivery' — partner-managed
+                    return current
+                idx = STATUS_FLOW.index(current)
                 if idx == len(STATUS_FLOW) - 1:
                     return current
                 new_status = STATUS_FLOW[idx + 1]

@@ -121,10 +121,11 @@ CSS = """
 .order-meta { color: var(--muted); font-size: .85rem; margin: .1rem 0 .5rem; }
 .order-items { color: var(--text); margin-bottom: .5rem; }
 
-.status-order-placed { background: rgba(232,161,58,.18);  color: #F0B75E; }
-.status-preparing    { background: rgba(76,141,232,.18);  color: #7DAcF2; }
-.status-packed       { background: rgba(164,107,232,.18); color: #C09BF0; }
-.status-delivered    { background: rgba(95,184,120,.18);  color: #7ED396; }
+.status-order-placed    { background: rgba(232,161,58,.18);  color: #F0B75E; }
+.status-preparing       { background: rgba(76,141,232,.18);  color: #7DAcF2; }
+.status-packed          { background: rgba(164,107,232,.18); color: #C09BF0; }
+.status-out-for-delivery{ background: rgba(255,90,60,.18);   color: #FF8A6E; }
+.status-delivered       { background: rgba(95,184,120,.18);  color: #7ED396; }
 
 /* Stock row */
 .stock-name { font-weight: 600; }

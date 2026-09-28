@@ -437,26 +437,55 @@ def partner_view():
         st.info("You aren't assigned to a branch yet — ask your branch to add you.")
         return
 
-    orders = t.get_delivery_orders(partner["branch_id"])
-    st.subheader(f"Delivery queue — {len(orders)} waiting")
-    if not orders:
+    partner_id = partner["partner_id"]
+    branch_id = partner["branch_id"]
+    passed = st.session_state.setdefault("passed_orders", set())
+
+    def _card(o):
+        when = o["order_time"].strftime("%b %d · %H:%M") if hasattr(o["order_time"], "strftime") else str(o["order_time"])
+        st.markdown(
+            f"<div class='order-head'>Order #{o['order_id']} {theme.status_pill(o['status'])}</div>"
+            f"<div class='order-meta'>{o['customer_name']} · {when}</div>"
+            f"<span class='price'>{theme.money(o['total_price'])} kr</span>",
+            unsafe_allow_html=True,
+        )
+
+    # Deliveries this partner has accepted.
+    mine = t.get_my_deliveries(partner_id)
+    st.subheader("Out for delivery")
+    if not mine:
+        st.caption("Nothing out for delivery right now.")
+    for o in mine:
+        with st.container(border=True):
+            _card(o)
+            if st.button("Mark delivered", key=f"deliver_{o['order_id']}", type="primary"):
+                t.mark_delivered(o["order_id"], partner_id)
+                st.rerun()
+
+    # Unclaimed deliveries available to accept (minus ones this partner passed on).
+    available = [o for o in t.get_delivery_orders(branch_id) if o["order_id"] not in passed]
+    st.subheader(f"Available deliveries — {len(available)}")
+    if not available:
         with st.container(border=True):
             st.markdown(
                 "<div class='order-head'>All caught up 🎉</div>"
-                f"<div class='order-meta'>No delivery orders waiting at {branch_label} right now. "
-                "New delivery orders will appear here.</div>",
+                f"<div class='order-meta'>No deliveries to accept at {branch_label} right now.</div>",
                 unsafe_allow_html=True,
             )
-    for o in orders:
-        when = o["order_time"].strftime("%b %d · %H:%M") if hasattr(o["order_time"], "strftime") else str(o["order_time"])
+    for o in available:
         with st.container(border=True):
-            st.markdown(
-                f"<div class='order-head'>Order #{o['order_id']} {theme.status_pill(o['status'])}</div>"
-                f"<div class='order-meta'>{o['customer_name']} · {when}</div>"
-                f"<span class='price'>{theme.money(o['total_price'])} kr</span>",
-                unsafe_allow_html=True,
-            )
-    st.caption("Claiming and first-to-accept assignment is an event-day extension.")
+            _card(o)
+            accept_c, reject_c = st.columns(2)
+            if accept_c.button("Accept", key=f"accept_{o['order_id']}", type="primary", use_container_width=True):
+                try:
+                    t.claim_delivery(o["order_id"], partner_id)
+                    st.rerun()
+                except t.DeliveryClaimError as e:
+                    st.warning(str(e))
+                    st.rerun()
+            if reject_c.button("Reject", key=f"reject_{o['order_id']}", use_container_width=True):
+                passed.add(o["order_id"])
+                st.rerun()
 
 
 # --------------------------------------------------------------------------- #
