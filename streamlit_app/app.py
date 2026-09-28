@@ -107,36 +107,37 @@ def _partner_form():
 ROLE_ICONS = {"Customer": "🧑", "Kitchen": "🧑‍🍳", "Delivery partner": "🛵"}
 
 
+# Small original mark (not an official logo) shown next to the Databricks name.
+DATABRICKS_MARK = (
+    "<svg width='16' height='16' viewBox='0 0 32 32' xmlns='http://www.w3.org/2000/svg'>"
+    "<path d='M2 9 L16 3 L30 9 L16 15 Z' fill='#fff' opacity='1'/>"
+    "<path d='M2 16 L16 10 L30 16 L16 22 Z' fill='#fff' opacity='.72'/>"
+    "<path d='M2 23 L16 17 L30 23 L16 29 Z' fill='#fff' opacity='.48'/>"
+    "</svg>"
+)
+
+
 def login_page():
-    """Branded landing — big hero banner, role menu in the top-right."""
-    # Top bar: brand on the left, sign-in menu on the right.
-    brand_c, menu_c = st.columns([3, 1])
-    brand_c.markdown("<div class='nav-brand'>🍕 Data on Tap</div>", unsafe_allow_html=True)
-    with menu_c:
-        current = st.session_state.get("login_role", "Customer")
-        with st.popover(f"{ROLE_ICONS[current]}  Sign in", use_container_width=True):
-            st.radio(
-                "I want to sign in as",
-                ["Customer", "Kitchen", "Delivery partner"],
-                key="login_role",
-            )
-
-    # Big hero banner.
-    st.markdown(
-        "<div class='banner'>"
-        "<div class='eyebrow'>Pizza ordering on Databricks Lakebase</div>"
-        "<h1>Data on Tap</h1>"
-        "<p>Order from your nearest branch, watch the kitchen work the queue, "
-        "and get it delivered — one atomic transaction at a time.</p>"
-        "</div>",
-        unsafe_allow_html=True,
-    )
-
-    # Sign-in form for the chosen role.
-    role = st.session_state.get("login_role", "Customer")
-    _, mid, _ = st.columns([1, 2, 1])
-    with mid:
-        st.markdown(f"#### {ROLE_ICONS[role]}  Sign in as {role}")
+    """Split landing — branded left panel, sign-in on the right."""
+    left, right = st.columns(2, gap="large")
+    with left:
+        st.markdown(
+            "<div class='split-left'>"
+            "<div>"
+            "<div class='eyebrow'>Pizza ordering on Lakebase</div>"
+            "<h1>Data on Tap</h1>"
+            "<p>Order from your nearest branch, watch the kitchen work the queue, "
+            "and get it delivered — one atomic transaction at a time.</p>"
+            "</div>"
+            f"<div class='poweredby'>Powered by {DATABRICKS_MARK} <b>Databricks</b></div>"
+            "</div>",
+            unsafe_allow_html=True,
+        )
+    with right:
+        st.markdown("<div class='right-head'>🍕 Data on Tap</div>", unsafe_allow_html=True)
+        role = st.selectbox(
+            "Sign in as", ["Customer", "Kitchen", "Delivery partner"], key="login_role"
+        )
         if role == "Customer":
             _customer_forms()
         elif role == "Kitchen":

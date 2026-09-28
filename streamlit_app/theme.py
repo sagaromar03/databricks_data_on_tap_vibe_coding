@@ -27,6 +27,31 @@ CSS = """
 .brand .accent { color: var(--accent); }
 .brand-sub { color: var(--muted); font-size: 1.05rem; margin: .1rem 0 1.4rem; }
 
+/* Split landing — branded left panel */
+.split-left {
+  background: linear-gradient(160deg, #FF6B35 0%, #E23E2C 55%, #B4271A 100%);
+  border-radius: 20px;
+  padding: 2.8rem 2.4rem;
+  min-height: 30rem;
+  color: #fff;
+  display: flex; flex-direction: column; justify-content: space-between;
+  position: relative; overflow: hidden;
+  box-shadow: 0 12px 34px rgba(226,62,44,.28);
+}
+.split-left::after {
+  content: "🍕"; position: absolute; right: 1rem; bottom: -1.6rem;
+  font-size: 9rem; opacity: .16; transform: rotate(-12deg);
+}
+.split-left .eyebrow { text-transform: uppercase; letter-spacing: .12em;
+  font-size: .74rem; font-weight: 700; opacity: .85; }
+.split-left h1 { font-size: 2.7rem; line-height: 1.05; margin: .4rem 0 0; letter-spacing: -.02em; }
+.split-left p { font-size: 1.08rem; opacity: .95; margin: .7rem 0 0; max-width: 26rem; }
+.poweredby { display: flex; align-items: center; gap: .5rem; font-size: .92rem;
+  opacity: .95; margin-top: 1.6rem; position: relative; z-index: 1; }
+.poweredby svg { display: block; }
+.right-head { font-weight: 800; font-size: 1.35rem; margin: .2rem 0 .2rem; }
+.right-sub { color: var(--muted); margin-bottom: 1rem; }
+
 /* Landing hero banner */
 .banner {
   position: relative;
