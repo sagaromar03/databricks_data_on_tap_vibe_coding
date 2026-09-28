@@ -29,7 +29,9 @@ CSS = """
 
 /* Split landing — branded left panel */
 .split-left {
-  background: linear-gradient(160deg, #FF6B35 0%, #E23E2C 55%, #B4271A 100%);
+  background: linear-gradient(135deg, #FF6B35 0%, #E23E2C 40%, #B4271A 70%, #E23E2C 100%);
+  background-size: 300% 300%;
+  animation: banner-shift 16s ease infinite;
   border-radius: 20px;
   padding: 3rem 2.6rem;
   min-height: 78vh;
@@ -38,9 +40,35 @@ CSS = """
   position: relative; overflow: hidden;
   box-shadow: 0 12px 34px rgba(226,62,44,.28);
 }
+@keyframes banner-shift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
 .split-left::after {
   content: "🍕"; position: absolute; right: 1rem; bottom: -1.6rem;
-  font-size: 9rem; opacity: .16; transform: rotate(-12deg);
+  font-size: 9rem; opacity: .18;
+  transform-origin: 50% 50%;
+  animation: pizza-bob 7s ease-in-out infinite;
+}
+@keyframes pizza-bob {
+  0%, 100% { transform: rotate(-12deg) translateY(0); }
+  50%      { transform: rotate(-4deg) translateY(-16px); }
+}
+/* Floating pizza slices drifting up the banner */
+.floatpizza {
+  position: absolute; bottom: 4%; opacity: 0;
+  animation: floatup 9s linear infinite; pointer-events: none;
+  filter: drop-shadow(0 4px 6px rgba(0,0,0,.2));
+}
+.floatpizza.p1 { left: 12%; font-size: 1.6rem; animation-delay: 0s; }
+.floatpizza.p2 { left: 46%; font-size: 1.2rem; animation-delay: 3s; }
+.floatpizza.p3 { left: 76%; font-size: 2.1rem; animation-delay: 6s; }
+@keyframes floatup {
+  0%   { transform: translateY(30px) rotate(0deg);   opacity: 0; }
+  12%  { opacity: .55; }
+  88%  { opacity: .55; }
+  100% { transform: translateY(-340px) rotate(200deg); opacity: 0; }
 }
 .split-left .eyebrow { text-transform: uppercase; letter-spacing: .12em;
   font-size: .74rem; font-weight: 700; opacity: .85; }

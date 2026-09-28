@@ -145,6 +145,9 @@ def login_page():
     with left:
         st.markdown(
             "<div class='split-left'>"
+            "<span class='floatpizza p1'>🍕</span>"
+            "<span class='floatpizza p2'>🍕</span>"
+            "<span class='floatpizza p3'>🍕</span>"
             "<div>"
             "<div class='eyebrow'>Pizza ordering on Lakebase</div>"
             "<h1>Data on Tap</h1>"
