@@ -1,66 +1,110 @@
 """All database connection logic for Data on Tap.
 
-Nothing else in the codebase calls psycopg2.connect(). get_connection() detects
-its environment and returns a live connection either way:
-
-  - Databricks App: connection details injected as standard PG* env vars.
-  - Local / notebook: an OAuth token generated in code via the Databricks SDK
-    (never a static password); the host also comes from the SDK.
-
-This single point of isolation is what makes the app interchangeable between a
-deployed Databricks App and a local `streamlit run`.
+The Lakebase database is a **project** (the autoscaling `w.postgres` model), not a
+legacy database instance. get_connection() resolves the project's read-write
+endpoint, mints a short-lived OAuth token via the SDK (never a static password),
+and returns a live psycopg2 connection. Nothing else in the codebase calls
+psycopg2.connect() — this single point of isolation is what lets the app run both
+as a deployed Databricks App and locally / in a notebook.
 """
 
 import os
-import uuid
 import contextlib
 
 import psycopg2
 
-INSTANCE_NAME = os.environ.get("LAKEBASE_INSTANCE_NAME", "data-on-tap")
+# Lakebase project. project_id "data-on-tap" -> resource name "projects/data-on-tap".
+PROJECT_ID = os.environ.get("LAKEBASE_INSTANCE_NAME", "data-on-tap")
+PROJECT_NAME = os.environ.get("LAKEBASE_PROJECT", f"projects/{PROJECT_ID}")
 DATABASE_NAME = os.environ.get("PGDATABASE", "databricks_postgres")
 
 
-def _generate_token(instance_names):
-    """Mint a short-lived OAuth token via the SDK; the token is the PG password."""
+def _workspace():
     from databricks.sdk import WorkspaceClient
 
-    w = WorkspaceClient()
-    cred = w.database.generate_database_credential(
-        request_id=str(uuid.uuid4()),
-        instance_names=list(instance_names),
+    return WorkspaceClient()
+
+
+def _pick_endpoint(w):
+    """Find the read-write Postgres endpoint for the project.
+
+    Endpoints may hang off the project directly or off one of its branches.
+    """
+    candidates = list(w.postgres.list_endpoints(PROJECT_NAME))
+    if not candidates:
+        for branch in w.postgres.list_branches(PROJECT_NAME):
+            candidates = list(w.postgres.list_endpoints(branch.name))
+            if candidates:
+                break
+    if not candidates:
+        raise RuntimeError(
+            f"No Postgres endpoint found for {PROJECT_NAME}. "
+            "Start or create an endpoint for the Lakebase project."
+        )
+    for e in candidates:
+        kind = f"{getattr(e, 'endpoint_type', '')} {getattr(e, 'type', '')}".lower()
+        if "read_write" in kind or "primary" in kind or "read-write" in kind:
+            return e
+    return candidates[0]
+
+
+def _endpoint_host(ep):
+    """Pull the connection hostname off an Endpoint object (field name varies)."""
+    for attr in ("host", "read_write_dns", "dns", "hostname", "endpoint"):
+        value = getattr(ep, attr, None)
+        if isinstance(value, str) and "." in value:
+            return value
+    # Fallback: scan for any hostname-looking string attribute.
+    for attr in dir(ep):
+        if attr.startswith("_"):
+            continue
+        try:
+            value = getattr(ep, attr)
+        except Exception:
+            continue
+        if isinstance(value, str) and value.count(".") >= 2 and " " not in value and "/" not in value:
+            return value
+    raise RuntimeError(f"Could not determine a host from the endpoint: {ep!r}")
+
+
+def _token(w, ep):
+    cred = w.postgres.generate_database_credential(endpoint=ep.name)
+    token = getattr(cred, "token", None)
+    if not token:
+        raise RuntimeError(f"No token returned on credential: {cred!r}")
+    return token
+
+
+def _connect_local():
+    """Local / notebook: resolve host + token from the SDK and connect as the user."""
+    w = _workspace()
+    ep = _pick_endpoint(w)
+    return psycopg2.connect(
+        host=_endpoint_host(ep),
+        dbname=DATABASE_NAME,
+        user=w.current_user.me().user_name,
+        password=_token(w, ep),
+        sslmode="require",
     )
-    return w, cred.token
 
 
 def _connect_app():
-    """Databricks App path: PG* connection details are injected as env vars.
+    """Databricks App: PG* connection details are injected as env vars.
 
-    The app runs as a service principal; PGUSER is the SP's client id (its
-    Postgres role). PGPASSWORD is NOT injected — we mint an OAuth token via the
-    SDK and use it as the password. That role must be GRANTed table privileges.
+    PGUSER is the app service principal's role. PGPASSWORD may be injected; if
+    not, mint an OAuth token via the SDK. That role must be GRANTed privileges.
     """
-    _, token = _generate_token([INSTANCE_NAME])
+    password = os.environ.get("PGPASSWORD")
+    if not password:
+        w = _workspace()
+        password = _token(w, _pick_endpoint(w))
     return psycopg2.connect(
         host=os.environ["PGHOST"],
         port=os.environ.get("PGPORT", "5432"),
         dbname=os.environ.get("PGDATABASE", DATABASE_NAME),
         user=os.environ["PGUSER"],
-        password=token,
+        password=password,
         sslmode=os.environ.get("PGSSLMODE", "require"),
-    )
-
-
-def _connect_local():
-    """Local / notebook path: host from the SDK, connect as the current user."""
-    w, token = _generate_token([INSTANCE_NAME])
-    instance = w.database.get_database_instance(name=INSTANCE_NAME)
-    return psycopg2.connect(
-        host=instance.read_write_dns,
-        dbname=DATABASE_NAME,
-        user=w.current_user.me().user_name,
-        password=token,
-        sslmode="require",
     )
 
 
