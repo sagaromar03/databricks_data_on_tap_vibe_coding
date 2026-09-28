@@ -49,11 +49,8 @@ def pick_branch(key_prefix):
 # --------------------------------------------------------------------------- #
 # Customer view
 # --------------------------------------------------------------------------- #
-def auth_gate():
-    """Render login/signup until authenticated. Returns the customer dict or None."""
-    if "auth_customer" in st.session_state:
-        return st.session_state["auth_customer"]
-
+def login_page():
+    """Login / signup page (shown when no one is signed in)."""
     theme.hero(st, "Welcome", "Sign in to order")
     _, mid, _ = st.columns([1, 2, 1])
     with mid:
@@ -80,15 +77,15 @@ def auth_gate():
                         st.rerun()
                     except auth.AuthError as e:
                         st.error(str(e))
-    return None
 
 
-def customer_view():
-    customer = auth_gate()
+def menu_view():
+    customer = st.session_state.get("auth_customer")
     if customer is None:
+        st.info("Please sign in to order.")
         return
 
-    theme.hero(st, "Order pizza", f"Signed in as {customer['name']}")
+    theme.hero(st, "Menu", f"Signed in as {customer['name']}")
 
     if "last_order" in st.session_state:
         lo = st.session_state["last_order"]
@@ -183,20 +180,67 @@ def customer_view():
             except t.OutOfStockError as e:
                 st.error(f"{e} Someone grabbed the last one — adjust your cart.")
 
+
+# --------------------------------------------------------------------------- #
+# Profile view
+# --------------------------------------------------------------------------- #
+def profile_view():
+    customer = st.session_state.get("auth_customer")
+    if customer is None:
+        st.info("Please sign in to view your profile.")
+        return
+
+    theme.hero(st, "Profile", customer["name"])
+
+    st.subheader("Account")
+    st.markdown(
+        f"<div class='summary'>"
+        f"<div class='row'><span>Customer ID</span><span>#{customer['customer_id']}</span></div>"
+        f"<div class='row'><span>Name</span><span>{customer['name']}</span></div>"
+        f"<div class='row'><span>Email</span><span>{customer['email']}</span></div>"
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+
+    st.subheader("Addresses")
+    addresses = t.get_addresses(customer["customer_id"])
+    if not addresses:
+        st.caption("No saved addresses yet.")
+    for a in addresses:
+        st.markdown(
+            f"<div class='order-head'>{a['label'] or 'Address'}</div>"
+            f"<div class='order-meta'>{a['street']}, {a.get('postal_code') or ''} {a['city']}</div>",
+            unsafe_allow_html=True,
+        )
+    with st.expander("Add an address"):
+        with st.form("add_address_form"):
+            label = st.text_input("Label", value="Home")
+            street = st.text_input("Street")
+            city = st.text_input("City")
+            postal = st.text_input("Postal code")
+            if st.form_submit_button("Save address", type="primary"):
+                try:
+                    t.add_address(customer["customer_id"], label, street, city, postal)
+                    st.success("Address saved.")
+                    st.rerun()
+                except ValueError as e:
+                    st.error(str(e))
+
+    st.subheader("Order history")
     my_orders = t.get_customer_orders(customer["customer_id"])
-    if my_orders:
-        st.subheader("Your recent orders")
-        for o in my_orders:
-            when = o["order_time"].strftime("%b %d · %H:%M") if hasattr(o["order_time"], "strftime") else str(o["order_time"])
-            items = ", ".join(f"{i['quantity']}× {i['pizza_name']}" for i in o["items"])
-            st.markdown(
-                f"<div class='order-head'>Order #{o['order_id']} {theme.status_pill(o['status'])}</div>"
-                f"<div class='order-meta'>{o['branch_name']} · {o['delivery_mode']} · {when}</div>"
-                f"<div class='order-items'>{items}</div>"
-                f"<span class='price'>{theme.money(o['total_price'])} kr</span>",
-                unsafe_allow_html=True,
-            )
-            st.divider()
+    if not my_orders:
+        st.caption("No orders yet.")
+    for o in my_orders:
+        when = o["order_time"].strftime("%b %d · %H:%M") if hasattr(o["order_time"], "strftime") else str(o["order_time"])
+        items = ", ".join(f"{i['quantity']}× {i['pizza_name']}" for i in o["items"])
+        st.markdown(
+            f"<div class='order-head'>Order #{o['order_id']} {theme.status_pill(o['status'])}</div>"
+            f"<div class='order-meta'>{o['branch_name']} · {o['delivery_mode']} · {when}</div>"
+            f"<div class='order-items'>{items}</div>"
+            f"<span class='price'>{theme.money(o['total_price'])} kr</span>",
+            unsafe_allow_html=True,
+        )
+        st.divider()
 
 
 # --------------------------------------------------------------------------- #
@@ -277,13 +321,18 @@ def main():
             st.rerun()
         st.divider()
 
-    nav = st.navigation(
-        [
-            st.Page(customer_view, title="Order", icon="🍕", url_path="order", default=True),
+    if "auth_customer" in st.session_state:
+        pages = [
+            st.Page(menu_view, title="Menu", icon="🍕", url_path="menu", default=True),
+            st.Page(profile_view, title="Profile", icon="👤", url_path="profile"),
             st.Page(kitchen_view, title="Kitchen", icon="🧑‍🍳", url_path="kitchen"),
         ]
-    )
-    nav.run()
+    else:
+        pages = [
+            st.Page(login_page, title="Sign in", icon="🔑", url_path="signin", default=True),
+            st.Page(kitchen_view, title="Kitchen", icon="🧑‍🍳", url_path="kitchen"),
+        ]
+    st.navigation(pages).run()
 
 
 main()

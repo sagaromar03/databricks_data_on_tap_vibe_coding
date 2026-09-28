@@ -48,6 +48,11 @@ INSERT INTO customers (name, email, phone, password_hash) VALUES
     ('Johan Berg',      'johan@example.se',  '070-4444444', 'pbkdf2_sha256$200000$d8157514a1c513ca4ce9ca56a052417a$71af18ab8e4778f6a60d88a4288c77721722ab20004a30790824e5989f24b985'),
     ('Lena Nilsson',    'lena@example.se',   '070-5555555', 'pbkdf2_sha256$200000$d8157514a1c513ca4ce9ca56a052417a$71af18ab8e4778f6a60d88a4288c77721722ab20004a30790824e5989f24b985');
 
+-- Sample saved addresses (customer_id 1 = Anna) for the profile page demo.
+INSERT INTO customer_addresses (customer_id, label, street, city, postal_code) VALUES
+    (1, 'Home', 'Gotgatan 12',   'Stockholm', '118 46'),
+    (1, 'Work', 'Sturegatan 4',  'Stockholm', '114 35');
+
 -- Delivery partners: a few, assigned to branches (event-day assignment logic uses these).
 INSERT INTO delivery_partners (name, phone, status, current_branch_id) VALUES
     ('Oskar Falk',    '070-6666666', 'available', 1),

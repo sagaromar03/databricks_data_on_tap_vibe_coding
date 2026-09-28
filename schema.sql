@@ -6,6 +6,7 @@ DROP TABLE IF EXISTS order_items;
 DROP TABLE IF EXISTS orders;
 DROP TABLE IF EXISTS inventory;
 DROP TABLE IF EXISTS delivery_partners;
+DROP TABLE IF EXISTS customer_addresses;
 DROP TABLE IF EXISTS customers;
 DROP TABLE IF EXISTS menu;
 DROP TABLE IF EXISTS branches;
@@ -38,6 +39,17 @@ CREATE TABLE delivery_partners (
     status            TEXT NOT NULL DEFAULT 'available',   -- available | busy | offline
     current_branch_id INT REFERENCES branches(branch_id),
     created_at        TIMESTAMP DEFAULT now()
+);
+
+-- 3b. customer_addresses — saved delivery addresses per customer (profile page)
+CREATE TABLE customer_addresses (
+    address_id  SERIAL PRIMARY KEY,
+    customer_id INT NOT NULL REFERENCES customers(customer_id),
+    label       TEXT,                  -- e.g. Home, Work
+    street      TEXT NOT NULL,
+    city        TEXT NOT NULL,
+    postal_code TEXT,
+    created_at  TIMESTAMP DEFAULT now()
 );
 
 -- 4. menu — brand-wide catalog (no stock here; stock is per-branch)

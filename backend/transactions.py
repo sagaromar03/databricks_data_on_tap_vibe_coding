@@ -203,6 +203,43 @@ def get_orders(branch_id, include_delivered=False):
         return orders
 
 
+def get_addresses(customer_id):
+    """A customer's saved addresses, oldest first."""
+    with connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT address_id, label, street, city, postal_code
+            FROM customer_addresses
+            WHERE customer_id = %s
+            ORDER BY address_id
+            """,
+            (customer_id,),
+        )
+        return _rows_as_dicts(cur)
+
+
+def add_address(customer_id, label, street, city, postal_code):
+    """Add a saved address for a customer. Returns the new address_id."""
+    label = (label or "").strip() or "Home"
+    street = (street or "").strip()
+    city = (city or "").strip()
+    postal_code = (postal_code or "").strip()
+    if not street or not city:
+        raise ValueError("Street and city are required.")
+    with connection() as conn:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO customer_addresses (customer_id, label, street, city, postal_code)
+                    VALUES (%s, %s, %s, %s, %s)
+                    RETURNING address_id
+                    """,
+                    (customer_id, label, street, city, postal_code),
+                )
+                return cur.fetchone()[0]
+
+
 def get_customer_orders(customer_id, limit=10):
     """A single customer's own orders (all branches), newest first, with items."""
     with connection() as conn, conn.cursor() as cur:
