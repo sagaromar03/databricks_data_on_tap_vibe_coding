@@ -10,6 +10,7 @@ Imports backend modules directly and calls them in-process. No UI logic lives
 in the backend; this file holds no SQL.
 """
 
+import base64
 import sys
 from pathlib import Path
 from decimal import Decimal
@@ -107,7 +108,7 @@ def _partner_form():
 ROLE_ICONS = {"Customer": "🧑", "Kitchen": "🧑‍🍳", "Delivery partner": "🛵"}
 
 
-# Small original mark (not an official logo) shown next to the Databricks name.
+# Placeholder mark used only until the official Databricks logo asset is added.
 DATABRICKS_MARK = (
     "<svg width='16' height='16' viewBox='0 0 32 32' xmlns='http://www.w3.org/2000/svg'>"
     "<path d='M2 9 L16 3 L30 9 L16 15 Z' fill='#fff' opacity='1'/>"
@@ -115,6 +116,27 @@ DATABRICKS_MARK = (
     "<path d='M2 23 L16 17 L30 23 L16 29 Z' fill='#fff' opacity='.48'/>"
     "</svg>"
 )
+
+_ASSETS = Path(__file__).resolve().parent / "assets"
+
+
+def _databricks_logo_html():
+    """Render the official Databricks logo if the asset file is present.
+
+    Drop the real logo at streamlit_app/assets/databricks-logo.svg (or .png) —
+    download it from Databricks' brand/press page; do not recreate it. Until
+    then this falls back to a neutral placeholder mark + wordmark.
+    """
+    for name, mime in (("databricks-logo.svg", "image/svg+xml"),
+                        ("databricks-logo.png", "image/png")):
+        f = _ASSETS / name
+        if f.exists():
+            data = base64.b64encode(f.read_bytes()).decode()
+            return (
+                f"<img src='data:{mime};base64,{data}' alt='Databricks' "
+                "style='height:22px;vertical-align:middle;'/>"
+            )
+    return f"{DATABRICKS_MARK} <b>Databricks</b>"
 
 
 def login_page():
@@ -129,7 +151,7 @@ def login_page():
             "<p>Order from your nearest branch, watch the kitchen work the queue, "
             "and get it delivered — one atomic transaction at a time.</p>"
             "</div>"
-            f"<div class='poweredby'>Powered by {DATABRICKS_MARK} <b>Databricks</b></div>"
+            f"<div class='poweredby'>Powered by {_databricks_logo_html()}</div>"
             "</div>",
             unsafe_allow_html=True,
         )
