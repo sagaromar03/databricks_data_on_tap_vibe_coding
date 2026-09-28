@@ -26,6 +26,9 @@ from backend import auth  # noqa: E402
 
 st.set_page_config(page_title="Data on Tap", page_icon="🍕", layout="wide")
 
+# Page registry, populated in main(); lets views switch pages programmatically.
+PAGES = {}
+
 
 @st.cache_data(ttl=300)
 def load_branches():
@@ -182,17 +185,20 @@ def menu_view():
 
 
 # --------------------------------------------------------------------------- #
-# Profile view
+# Account pages (each its own page)
 # --------------------------------------------------------------------------- #
-def profile_view():
+def _require_customer():
     customer = st.session_state.get("auth_customer")
     if customer is None:
-        st.info("Please sign in to view your profile.")
+        st.info("Please sign in first.")
+    return customer
+
+
+def account_view():
+    customer = _require_customer()
+    if customer is None:
         return
-
-    theme.hero(st, "Profile", customer["name"])
-
-    st.subheader("Account")
+    theme.hero(st, "Account", "Your personal information")
     st.markdown(
         f"<div class='summary'>"
         f"<div class='row'><span>Customer ID</span><span>#{customer['customer_id']}</span></div>"
@@ -202,45 +208,91 @@ def profile_view():
         unsafe_allow_html=True,
     )
 
-    st.subheader("Addresses")
+
+def addresses_view():
+    customer = _require_customer()
+    if customer is None:
+        return
+    # Landing on the list clears any half-finished edit.
+    st.session_state.pop("edit_address_id", None)
+
+    theme.hero(st, "Addresses", "Your saved delivery addresses")
+
+    if st.button("＋ Add address", type="primary"):
+        st.switch_page(PAGES["address_form"])
+
     addresses = t.get_addresses(customer["customer_id"])
     if not addresses:
         st.caption("No saved addresses yet.")
     for a in addresses:
-        st.markdown(
-            f"<div class='order-head'>{a['label'] or 'Address'}</div>"
-            f"<div class='order-meta'>{a['street']}, {a.get('postal_code') or ''} {a['city']}</div>",
-            unsafe_allow_html=True,
-        )
-    with st.expander("Add an address"):
-        with st.form("add_address_form"):
-            label = st.text_input("Label", value="Home")
-            street = st.text_input("Street")
-            city = st.text_input("City")
-            postal = st.text_input("Postal code")
-            if st.form_submit_button("Save address", type="primary"):
-                try:
-                    t.add_address(customer["customer_id"], label, street, city, postal)
-                    st.success("Address saved.")
-                    st.rerun()
-                except ValueError as e:
-                    st.error(str(e))
+        with st.container(border=True):
+            info, edit_c, del_c = st.columns([6, 1, 1])
+            info.markdown(
+                f"<div class='order-head'>{a['label'] or 'Address'}</div>"
+                f"<div class='order-meta'>{a['street']}, {a.get('postal_code') or ''} {a['city']}</div>",
+                unsafe_allow_html=True,
+            )
+            if edit_c.button("Edit", key=f"edit_{a['address_id']}", use_container_width=True):
+                st.session_state["edit_address_id"] = a["address_id"]
+                st.switch_page(PAGES["address_form"])
+            if del_c.button("Delete", key=f"del_{a['address_id']}", use_container_width=True):
+                t.delete_address(a["address_id"], customer["customer_id"])
+                st.rerun()
 
-    st.subheader("Order history")
+
+def address_form_view():
+    customer = _require_customer()
+    if customer is None:
+        return
+
+    edit_id = st.session_state.get("edit_address_id")
+    existing = t.get_address(edit_id, customer["customer_id"]) if edit_id else None
+    title = "Edit address" if existing else "Add address"
+    theme.hero(st, title, "")
+
+    with st.form("address_form"):
+        label = st.text_input("Label", value=(existing["label"] if existing else "Home"))
+        street = st.text_input("Street", value=(existing["street"] if existing else ""))
+        city = st.text_input("City", value=(existing["city"] if existing else ""))
+        postal = st.text_input("Postal code", value=(existing.get("postal_code") if existing else "") or "")
+        save, cancel = st.columns(2)
+        submitted = save.form_submit_button("Save", type="primary", use_container_width=True)
+        cancelled = cancel.form_submit_button("Cancel", use_container_width=True)
+
+    if cancelled:
+        st.session_state.pop("edit_address_id", None)
+        st.switch_page(PAGES["addresses"])
+    if submitted:
+        try:
+            if existing:
+                t.update_address(existing["address_id"], customer["customer_id"], label, street, city, postal)
+            else:
+                t.add_address(customer["customer_id"], label, street, city, postal)
+            st.session_state.pop("edit_address_id", None)
+            st.switch_page(PAGES["addresses"])
+        except ValueError as e:
+            st.error(str(e))
+
+
+def order_history_view():
+    customer = _require_customer()
+    if customer is None:
+        return
+    theme.hero(st, "Order history", "Your past orders")
     my_orders = t.get_customer_orders(customer["customer_id"])
     if not my_orders:
         st.caption("No orders yet.")
     for o in my_orders:
         when = o["order_time"].strftime("%b %d · %H:%M") if hasattr(o["order_time"], "strftime") else str(o["order_time"])
         items = ", ".join(f"{i['quantity']}× {i['pizza_name']}" for i in o["items"])
-        st.markdown(
-            f"<div class='order-head'>Order #{o['order_id']} {theme.status_pill(o['status'])}</div>"
-            f"<div class='order-meta'>{o['branch_name']} · {o['delivery_mode']} · {when}</div>"
-            f"<div class='order-items'>{items}</div>"
-            f"<span class='price'>{theme.money(o['total_price'])} kr</span>",
-            unsafe_allow_html=True,
-        )
-        st.divider()
+        with st.container(border=True):
+            st.markdown(
+                f"<div class='order-head'>Order #{o['order_id']} {theme.status_pill(o['status'])}</div>"
+                f"<div class='order-meta'>{o['branch_name']} · {o['delivery_mode']} · {when}</div>"
+                f"<div class='order-items'>{items}</div>"
+                f"<span class='price'>{theme.money(o['total_price'])} kr</span>",
+                unsafe_allow_html=True,
+            )
 
 
 # --------------------------------------------------------------------------- #
@@ -321,16 +373,23 @@ def main():
             st.rerun()
         st.divider()
 
+    kitchen = st.Page(kitchen_view, title="Kitchen", icon="🧑‍🍳", url_path="kitchen")
+
     if "auth_customer" in st.session_state:
-        pages = [
-            st.Page(menu_view, title="Menu", icon="🍕", url_path="menu", default=True),
-            st.Page(profile_view, title="Profile", icon="👤", url_path="profile"),
-            st.Page(kitchen_view, title="Kitchen", icon="🧑‍🍳", url_path="kitchen"),
-        ]
+        PAGES["menu"] = st.Page(menu_view, title="Menu", icon="🍕", url_path="menu", default=True)
+        PAGES["account"] = st.Page(account_view, title="Account", icon="👤", url_path="account")
+        PAGES["addresses"] = st.Page(addresses_view, title="Addresses", icon="📍", url_path="addresses")
+        PAGES["address_form"] = st.Page(address_form_view, title="Add / edit address", icon="✏️", url_path="address-form")
+        PAGES["orders"] = st.Page(order_history_view, title="Order history", icon="🧾", url_path="orders")
+        pages = {
+            "Shop": [PAGES["menu"]],
+            "Your account": [PAGES["account"], PAGES["addresses"], PAGES["address_form"], PAGES["orders"]],
+            "Staff": [kitchen],
+        }
     else:
         pages = [
             st.Page(login_page, title="Sign in", icon="🔑", url_path="signin", default=True),
-            st.Page(kitchen_view, title="Kitchen", icon="🧑‍🍳", url_path="kitchen"),
+            kitchen,
         ]
     st.navigation(pages).run()
 

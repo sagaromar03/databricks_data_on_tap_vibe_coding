@@ -240,6 +240,56 @@ def add_address(customer_id, label, street, city, postal_code):
                 return cur.fetchone()[0]
 
 
+def get_address(address_id, customer_id):
+    """One address, only if it belongs to this customer (ownership check)."""
+    with connection() as conn, conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT address_id, label, street, city, postal_code
+            FROM customer_addresses
+            WHERE address_id = %s AND customer_id = %s
+            """,
+            (address_id, customer_id),
+        )
+        rows = _rows_as_dicts(cur)
+        return rows[0] if rows else None
+
+
+def update_address(address_id, customer_id, label, street, city, postal_code):
+    """Update a customer's own address. The customer_id guard is the RBAC."""
+    street = (street or "").strip()
+    city = (city or "").strip()
+    if not street or not city:
+        raise ValueError("Street and city are required.")
+    with connection() as conn:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE customer_addresses
+                    SET label = %s, street = %s, city = %s, postal_code = %s
+                    WHERE address_id = %s AND customer_id = %s
+                    """,
+                    ((label or "").strip() or "Home", street, city,
+                     (postal_code or "").strip(), address_id, customer_id),
+                )
+                if cur.rowcount == 0:
+                    raise ValueError("Address not found.")
+
+
+def delete_address(address_id, customer_id):
+    """Delete a customer's own address. The customer_id guard is the RBAC."""
+    with connection() as conn:
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "DELETE FROM customer_addresses WHERE address_id = %s AND customer_id = %s",
+                    (address_id, customer_id),
+                )
+                if cur.rowcount == 0:
+                    raise ValueError("Address not found.")
+
+
 def get_customer_orders(customer_id, limit=10):
     """A single customer's own orders (all branches), newest first, with items."""
     with connection() as conn, conn.cursor() as cur:
