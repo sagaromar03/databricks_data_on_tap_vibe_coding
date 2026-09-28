@@ -56,28 +56,22 @@ print(f"schema   : {RUN_SCHEMA} | seed: {RUN_SEED} | verify: {VERIFY}")
 
 # COMMAND ----------
 
-import uuid
-import psycopg2
-from databricks.sdk import WorkspaceClient
+import sys
 
-w = WorkspaceClient()
+# Point db.py at this project/database, then reuse the app's own connection logic
+# (backend/db.py) so the notebook and the app connect exactly the same way.
+os.environ["LAKEBASE_INSTANCE_NAME"] = INSTANCE_NAME
+os.environ["PGDATABASE"] = DATABASE_NAME
 
-user = PG_USER or w.current_user.me().user_name
-instance = w.database.get_database_instance(name=INSTANCE_NAME)
-cred = w.database.generate_database_credential(
-    request_id=str(uuid.uuid4()),
-    instance_names=[INSTANCE_NAME],
-)
+REPO_ROOT = SQL_DIR if os.path.isdir(os.path.join(SQL_DIR, "backend")) else os.getcwd()
+if REPO_ROOT not in sys.path:
+    sys.path.insert(0, REPO_ROOT)
 
-conn = psycopg2.connect(
-    host=instance.read_write_dns,
-    dbname=DATABASE_NAME,
-    user=user,
-    password=cred.token,
-    sslmode="require",
-)
-print(f"Connected to {instance.read_write_dns} as {user}")
-print("(First connect can take a few seconds if the instance scaled to zero.)")
+from backend import db  # noqa: E402
+
+conn = db.get_connection()
+print(f"Connected to Lakebase project '{INSTANCE_NAME}' (database {DATABASE_NAME}).")
+print("(First connect can take a few seconds if the endpoint scaled to zero.)")
 
 # COMMAND ----------
 
