@@ -31,8 +31,8 @@ CSS = """
 .split-left {
   background: linear-gradient(160deg, #FF6B35 0%, #E23E2C 55%, #B4271A 100%);
   border-radius: 20px;
-  padding: 2.8rem 2.4rem;
-  min-height: 30rem;
+  padding: 3rem 2.6rem;
+  min-height: 78vh;
   color: #fff;
   display: flex; flex-direction: column; justify-content: space-between;
   position: relative; overflow: hidden;

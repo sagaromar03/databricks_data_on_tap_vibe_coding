@@ -434,12 +434,19 @@ def partner_view():
     theme.hero(st, "Deliveries", f"{branch_label} · {partner['name']}")
 
     if not partner.get("branch_id"):
-        st.caption("You aren't assigned to a branch yet.")
+        st.info("You aren't assigned to a branch yet — ask your branch to add you.")
         return
 
     orders = t.get_delivery_orders(partner["branch_id"])
+    st.subheader(f"Delivery queue — {len(orders)} waiting")
     if not orders:
-        st.caption("No delivery orders right now.")
+        with st.container(border=True):
+            st.markdown(
+                "<div class='order-head'>All caught up 🎉</div>"
+                f"<div class='order-meta'>No delivery orders waiting at {branch_label} right now. "
+                "New delivery orders will appear here.</div>",
+                unsafe_allow_html=True,
+            )
     for o in orders:
         when = o["order_time"].strftime("%b %d · %H:%M") if hasattr(o["order_time"], "strftime") else str(o["order_time"])
         with st.container(border=True):
