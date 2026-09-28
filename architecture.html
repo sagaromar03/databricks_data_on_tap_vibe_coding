@@ -88,7 +88,7 @@
 
       <rect x="36" y="238" width="360" height="96" rx="9" fill="#ffffff" stroke="#2563eb" stroke-width="1.5"/>
       <text x="216" y="264" text-anchor="middle" font-size="13" font-weight="700" fill="#1c1b19">Lakebase — managed Postgres</text>
-      <text x="216" y="284" text-anchor="middle" font-size="11" fill="#6b6862">branches · customers · partners · menu</text>
+      <text x="216" y="284" text-anchor="middle" font-size="11" fill="#6b6862">branches · customers · staff · partners · addresses · menu</text>
       <text x="216" y="300" text-anchor="middle" font-size="11" fill="#6b6862">inventory · orders · order_items</text>
       <text x="216" y="320" text-anchor="middle" font-size="10.5" fill="#2563eb">atomic place-order txn · per-branch stock</text>
 
@@ -152,23 +152,23 @@ COMMIT</pre>
   <h2>Feature priorities</h2>
   <div class="tiers">
     <div class="tier mvp">
-      <h3><span class="badge mvp">MVP</span> the spine (build now)</h3>
+      <h3><span class="badge mvp">Built</span> the app today</h3>
       <ul>
-        <li>Pick branch (grouped by city) → browse that branch's menu with live stock</li>
-        <li>Multi-item cart → place order → <strong>atomic transaction</strong> + stock decrement</li>
-        <li>Stock guard (UI cap + transaction re-check)</li>
-        <li>VAT breakdown (12%) · delivery mode (pickup / delivery)</li>
-        <li>Kitchen view: order queue + advance status + restock</li>
+        <li>Customer login / signup (hashed passwords) + staff &amp; delivery-partner roles</li>
+        <li>Pick branch → live stock → multi-item cart → <strong>atomic transaction</strong> + stock decrement</li>
+        <li>VAT breakdown (12%) · pickup / delivery · Account, Addresses, Order-history pages</li>
+        <li>Kitchen (branch-scoped): order queue + advance status + restock</li>
+        <li>Delivery partner: accept / reject (first-to-accept, same atomic primitive) + mark delivered</li>
       </ul>
     </div>
     <div class="tier t2">
-      <h3><span class="badge t2">Event day</span> build live on top</h3>
+      <h3><span class="badge t2">Next</span> still open</h3>
       <ul>
-        <li>Delivery-partner assignment (first-to-accept, same atomic primitive)</li>
-        <li>Concurrency demo harness (N orders, low stock, watch it hold)</li>
+        <li>Concurrency demo harness (N orders / claims, low stock, watch it hold)</li>
         <li>Analytics via Delta medallion · Genie NL queries</li>
         <li>Geo / nearest-branch (lat-long columns already present)</li>
         <li>Restock logging (inventory_log audit table)</li>
+        <li>React frontend + thin REST api.py (could use the Lakebase Data API for reads)</li>
       </ul>
     </div>
   </div>
@@ -187,7 +187,7 @@ COMMIT</pre>
     <div class="card box">
       <h3>Deliberate scope calls</h3>
       <ul>
-        <li><strong>Auth:</strong> Databricks Apps SSO; apps can't be public (Free Edition). Roles are a view selector. <code>no login built</code></li>
+        <li><strong>Auth:</strong> customer login/signup (PBKDF2-hashed); staff &amp; partner accounts org-provisioned, branch-scoped. Data scoped by role. Production consumer tier lives outside Databricks.</li>
         <li><strong>Delivery:</strong> status stages + mode, not a maps integration.</li>
         <li><strong>Branches:</strong> multiple per city; nearest-branch geo is a stretch.</li>
         <li><strong>One backend, two frontends</strong> — Streamlit (direct) + React (via thin API) share one spine.</li>
@@ -217,6 +217,8 @@ try {
     CUSTOMERS ||--o{ ORDERS : places
     DELIVERY_PARTNERS |o--o{ ORDERS : delivers
     BRANCHES ||--o{ DELIVERY_PARTNERS : "based at"
+    BRANCHES ||--o{ STAFF : employs
+    CUSTOMERS ||--o{ CUSTOMER_ADDRESSES : saves
     ORDERS ||--|{ ORDER_ITEMS : contains
     MENU ||--o{ ORDER_ITEMS : "ordered as"
     BRANCHES { int branch_id PK
@@ -226,9 +228,21 @@ try {
       numeric longitude }
     CUSTOMERS { int customer_id PK
       string name
-      string email }
+      string email UK
+      string password_hash }
+    STAFF { int staff_id PK
+      string email UK
+      string password_hash
+      int branch_id FK }
+    CUSTOMER_ADDRESSES { int address_id PK
+      int customer_id FK
+      string label
+      string street
+      string city }
     DELIVERY_PARTNERS { int partner_id PK
       string name
+      string email UK
+      string password_hash
       string status
       int current_branch_id FK }
     MENU { int id PK
