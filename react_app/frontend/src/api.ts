@@ -2,9 +2,10 @@ import type {
   Branch, MenuItem, OrderResult, Session, KitchenOrder, DeliveryOrder,
 } from "./types";
 
-// MOCK = true runs the whole UI standalone (sample data, no backend/DB) — for
-// local dev and previews. Flip to false to call backend/api.py over HTTP.
-const MOCK = true;
+// MOCK on = the whole UI runs standalone with sample data (no backend/DB),
+// which is the default so it works anywhere. Run the real API instead with:
+//   VITE_USE_MOCK=false npm run dev   (with uvicorn backend.api:app on :8000)
+const MOCK = import.meta.env.VITE_USE_MOCK !== "false";
 
 let token: string | null = null;
 let session: Session | null = null;
