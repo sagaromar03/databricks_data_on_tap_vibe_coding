@@ -9,9 +9,11 @@ Run:  uvicorn backend.api:app --reload   (from the repo root)
 
 import os
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import jwt
 from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from . import auth
@@ -257,3 +259,10 @@ def deliveries_deliver(order_id: int, me=Depends(require("partner"))):
 @app.get("/api/health")
 def health():
     return {"ok": True}
+
+
+# Serve the built React app (react_app/frontend/dist) if present, so one uvicorn
+# process serves both the UI and /api. Mounted last so the /api routes win.
+_DIST = Path(__file__).resolve().parent.parent / "react_app" / "frontend" / "dist"
+if _DIST.exists():
+    app.mount("/", StaticFiles(directory=str(_DIST), html=True), name="spa")
