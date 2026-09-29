@@ -207,7 +207,7 @@ def menu_view():
                 stock = int(m["stock_quantity"])
                 info.markdown(
                     "<div class='menu-row'>"
-                    f"{theme.pizza_svg(36)}"
+                    f"{theme.pizza_svg(36, m['pizza_name'], m['diet_type'])}"
                     "<div>"
                     f"<span class='pizza-name'>{m['pizza_name']}</span> "
                     f"{theme.diet_badge(m['diet_type'])}"

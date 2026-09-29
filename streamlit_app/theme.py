@@ -147,27 +147,48 @@ CSS = """
 """
 
 
-# Original pizza-slice illustration (not a logo/character): cheese, browned crust,
-# pepperoni, basil. Scales crisply at any size — no image files needed.
-PIZZA = (
-    "<svg viewBox='0 0 64 64' xmlns='http://www.w3.org/2000/svg' aria-hidden='true'>"
+# Original pizza-slice illustration (not a logo/character): a cheese slice with a
+# browned crust, and toppings that VARY per pizza so each one looks different.
+_SLICE_BASE = (
     "<path d='M13 23 Q32 12 51 23 L32 57 Z' fill='#F7C948'/>"
     "<path d='M13 23 Q32 12 51 23' stroke='#D9843A' stroke-width='6' stroke-linecap='round' fill='none'/>"
-    "<circle cx='25' cy='31' r='3.4' fill='#CE3B2B'/>"
-    "<circle cx='39' cy='32' r='3.4' fill='#CE3B2B'/>"
-    "<circle cx='32' cy='44' r='3' fill='#CE3B2B'/>"
-    "<circle cx='43' cy='27' r='1.9' fill='#5FB878'/>"
-    "<circle cx='22' cy='39' r='1.7' fill='#5FB878'/>"
-    "<circle cx='34' cy='35' r='1.5' fill='#8B5A2B' opacity='.6'/>"
-    "</svg>"
 )
 
+# name -> toppings as (cx, cy, r, color)
+_TOPPINGS = {
+    "margherita":     [(25, 31, 3.2, "#E2574C"), (39, 32, 3.2, "#E2574C"), (32, 43, 2.6, "#E2574C"), (43, 27, 2.0, "#5FB878"), (22, 39, 2.0, "#5FB878")],
+    "four cheese":    [(25, 31, 3.4, "#FBE8B0"), (39, 31, 3.2, "#FBE8B0"), (32, 42, 3.0, "#FBE8B0"), (43, 27, 2.2, "#EBCB7A"), (22, 38, 2.0, "#EBCB7A")],
+    "veggie supreme": [(25, 31, 3.0, "#4CAF50"), (39, 31, 3.0, "#E2574C"), (32, 43, 2.8, "#A06CD5"), (43, 26, 2.0, "#2E2A28"), (22, 38, 2.4, "#F2C94C")],
+    "vegan garden":   [(25, 31, 3.0, "#5FB878"), (39, 32, 2.8, "#4CAF50"), (32, 42, 2.6, "#3E9B5A"), (43, 26, 2.0, "#8BC34A"), (22, 38, 2.0, "#5FB878")],
+    "pepperoni":      [(25, 30, 3.4, "#CE3B2B"), (39, 31, 3.4, "#CE3B2B"), (32, 44, 3.0, "#CE3B2B"), (43, 26, 2.6, "#CE3B2B"), (22, 39, 2.6, "#CE3B2B")],
+    "bbq chicken":    [(25, 31, 3.2, "#D8A566"), (39, 31, 3.2, "#D8A566"), (32, 43, 2.8, "#B5532E"), (43, 26, 2.0, "#5FB878"), (22, 38, 2.4, "#D8A566")],
+}
+_DIET_FALLBACK = {"veg": "margherita", "vegan": "vegan garden", "non-veg": "pepperoni"}
 
-def pizza_svg(px=30):
-    """Inline pizza slice at a given pixel size, for a menu card."""
-    return PIZZA.replace(
-        "<svg ", f"<svg class='pizza-ico' width='{px}' height='{px}' ", 1
+
+def _toppings(name, diet):
+    key = (name or "").strip().lower()
+    if key in _TOPPINGS:
+        return _TOPPINGS[key]
+    return _TOPPINGS[_DIET_FALLBACK.get(diet, "margherita")]
+
+
+def pizza_svg(px=30, name="", diet="veg"):
+    """Inline pizza slice sized for a menu card, with toppings for this pizza."""
+    dots = "".join(f"<circle cx='{x}' cy='{y}' r='{r}' fill='{c}'/>" for x, y, r, c in _toppings(name, diet))
+    return (
+        f"<svg class='pizza-ico' width='{px}' height='{px}' viewBox='0 0 64 64' "
+        "xmlns='http://www.w3.org/2000/svg' aria-hidden='true'>" + _SLICE_BASE + dots + "</svg>"
     )
+
+
+# Banner uses a full-size pepperoni slice (CSS sizes it).
+PIZZA = (
+    "<svg viewBox='0 0 64 64' xmlns='http://www.w3.org/2000/svg' aria-hidden='true'>"
+    + _SLICE_BASE
+    + "".join(f"<circle cx='{x}' cy='{y}' r='{r}' fill='{c}'/>" for x, y, r, c in _TOPPINGS["pepperoni"])
+    + "</svg>"
+)
 
 
 def inject(st):
