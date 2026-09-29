@@ -11,6 +11,10 @@ body{margin:0;background:var(--bg);color:var(--text);
   padding:14px 22px;background:rgba(23,18,15,.85);backdrop-filter:blur(10px);border-bottom:1px solid var(--border);}
 .brand{font-weight:800;font-size:1.15rem;} .brand .a{color:var(--accent);}
 .pill{font-size:.72rem;color:var(--muted);border:1px solid var(--border);border-radius:999px;padding:3px 9px;margin-left:8px;}
+.navleft{display:flex;align-items:center;gap:18px;} .navright{display:flex;align-items:center;gap:4px;}
+.navlinks{display:flex;gap:2px;}
+.navlink{background:none;border:none;color:var(--muted);padding:7px 12px;border-radius:9px;cursor:pointer;font-size:.9rem;}
+.navlink:hover{color:var(--text);} .navlink.on{color:var(--text);background:var(--surface);font-weight:600;}
 .ghost{background:none;border:1px solid var(--border);color:var(--text);border-radius:12px;padding:9px 14px;
   margin-right:10px;cursor:pointer;font-size:.9rem;}
 .cartbtn{position:relative;background:var(--surface);border:1px solid var(--border);color:var(--text);

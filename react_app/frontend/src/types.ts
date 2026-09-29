@@ -36,3 +36,19 @@ export type DeliveryOrder = {
   total_price: number;
   customer_name: string;
 };
+export type Address = {
+  address_id: number;
+  label: string;
+  street: string;
+  city: string;
+  postal_code: string;
+};
+export type CustomerOrder = {
+  order_id: number;
+  order_time: string;
+  status: string;
+  delivery_mode: string;
+  total_price: number;
+  branch_name: string;
+  items: OrderLine[];
+};

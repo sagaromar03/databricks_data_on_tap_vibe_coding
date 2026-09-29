@@ -1,5 +1,5 @@
 import type {
-  Branch, MenuItem, OrderResult, Session, KitchenOrder, DeliveryOrder,
+  Branch, MenuItem, OrderResult, Session, KitchenOrder, DeliveryOrder, Address, CustomerOrder,
 } from "./types";
 
 // MOCK on = the whole UI runs standalone with sample data (no backend/DB),
@@ -81,8 +81,9 @@ export async function login(email: string, password: string): Promise<Session> {
     method: "POST", body: JSON.stringify({ email, password }),
   });
   setToken(r.token);
-  session = { role: "customer", ...r.customer };
-  return session;
+  const s: Session = { role: "customer", ...r.customer };
+  session = s;
+  return s;
 }
 export async function staffLogin(email: string, password: string): Promise<Session> {
   if (MOCK) {
@@ -94,8 +95,9 @@ export async function staffLogin(email: string, password: string): Promise<Sessi
     method: "POST", body: JSON.stringify({ email, password }),
   });
   setToken(r.token);
-  session = { role: "staff", ...r.staff };
-  return session;
+  const s: Session = { role: "staff", ...r.staff };
+  session = s;
+  return s;
 }
 export async function partnerLogin(email: string, password: string): Promise<Session> {
   if (MOCK) {
@@ -107,8 +109,9 @@ export async function partnerLogin(email: string, password: string): Promise<Ses
     method: "POST", body: JSON.stringify({ email, password }),
   });
   setToken(r.token);
-  session = { role: "partner", ...r.partner };
-  return session;
+  const s: Session = { role: "partner", ...r.partner };
+  session = s;
+  return s;
 }
 
 // --------------------------------------------------------------------------- //
@@ -126,11 +129,52 @@ export async function placeOrder(
     for (const it of items) MENU.find((x) => x.id === it.menu_id)!.stock_quantity -= it.quantity;
     const subtotal = items.reduce((a, i) => a + priceById[i.menu_id] * i.quantity, 0);
     const vat = +(subtotal * 0.12).toFixed(2);
-    return { order_id: Math.floor(Math.random() * 900 + 200), subtotal, vat_amount: vat, total_price: +(subtotal + vat).toFixed(2) };
+    const total = +(subtotal + vat).toFixed(2);
+    const order_id = Math.floor(Math.random() * 900 + 200);
+    const nameById = Object.fromEntries(MENU.map((m) => [m.id, m.pizza_name]));
+    const branch = BRANCHES.find((b) => b.branch_id === branchId)?.branch_name ?? "";
+    MY_ORDERS.unshift({
+      order_id, order_time: "just now", status: "order placed", delivery_mode: deliveryMode,
+      total_price: total, branch_name: branch,
+      items: items.map((i) => ({ pizza_name: nameById[i.menu_id], quantity: i.quantity })),
+    });
+    return { order_id, subtotal, vat_amount: vat, total_price: total };
   }
   return req("/api/orders", {
     method: "POST", body: JSON.stringify({ branch_id: branchId, items, delivery_mode: deliveryMode }),
   });
+}
+
+const ADDRESSES: Address[] = [
+  { address_id: 1, label: "Home", street: "Gotgatan 12", city: "Stockholm", postal_code: "118 46" },
+  { address_id: 2, label: "Work", street: "Sturegatan 4", city: "Stockholm", postal_code: "114 35" },
+];
+let nextAddressId = 3;
+const MY_ORDERS: CustomerOrder[] = [
+  {
+    order_id: 42, order_time: "Sep 28 · 12:53", status: "delivered", delivery_mode: "delivery",
+    total_price: 24.64, branch_name: "Pizza Hut Centrum",
+    items: [{ pizza_name: "Pepperoni", quantity: 2 }],
+  },
+];
+
+export async function getAddresses(): Promise<Address[]> {
+  return MOCK ? ADDRESSES.map((a) => ({ ...a })) : req("/api/addresses");
+}
+export async function addAddress(a: Omit<Address, "address_id">): Promise<void> {
+  if (MOCK) { ADDRESSES.push({ ...a, address_id: nextAddressId++ }); return; }
+  await req("/api/addresses", { method: "POST", body: JSON.stringify(a) });
+}
+export async function updateAddress(id: number, a: Omit<Address, "address_id">): Promise<void> {
+  if (MOCK) { Object.assign(ADDRESSES.find((x) => x.address_id === id)!, a); return; }
+  await req(`/api/addresses/${id}`, { method: "PUT", body: JSON.stringify(a) });
+}
+export async function deleteAddress(id: number): Promise<void> {
+  if (MOCK) { const i = ADDRESSES.findIndex((x) => x.address_id === id); if (i >= 0) ADDRESSES.splice(i, 1); return; }
+  await req(`/api/addresses/${id}`, { method: "DELETE" });
+}
+export async function getMyOrders(): Promise<CustomerOrder[]> {
+  return MOCK ? MY_ORDERS.map((o) => ({ ...o })) : req("/api/orders/mine");
 }
 
 // --------------------------------------------------------------------------- //
